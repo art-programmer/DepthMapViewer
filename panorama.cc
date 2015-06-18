@@ -44,7 +44,10 @@ bool Panorama::Init(const FileIO& file_io,
     }
   }
   ifstr.close();
-  UpdateSurfaceIds();
+//  UpdateSurfaceIds();
+
+//  cout << depth_values[235 * depth_width + 14] << '\t' << depth_values[235 * depth_width + 15] << '\t' << depth_values[236 * depth_width + 14] << '\t' << depth_values[236 * depth_width + 15] << endl;
+//  cout << surface_ids[235 * depth_width + 14] << '\t' << surface_ids[235 * depth_width + 15] << '\t' << surface_ids[236 * depth_width + 14] << '\t' << surface_ids[236 * depth_width + 15] << endl;
 
   InitCameraParameters(file_io, scene_index);
   phi_per_pixel = phi_range / height;
@@ -139,8 +142,8 @@ Eigen::Vector2d Panorama::RGBToDepth(const Eigen::Vector2d& pixel) const {
 }
 
 Eigen::Vector2d Panorama::DepthToRGB(const Eigen::Vector2d& depth_pixel) const {
-  return Vector2d(min(width - 1.0, depth_pixel[0] * width / depth_width),
-                  min(height - 1.0, depth_pixel[1] * height / depth_height));
+  return Vector2d(min(width - 0.0, depth_pixel[0] * width / depth_width),
+                  min(height - 0.0, depth_pixel[1] * height / depth_height));
 }
 
 Eigen::Vector3f Panorama::GetRGB(const Eigen::Vector2d& pixel) const {
@@ -406,7 +409,7 @@ void Panorama::InitDepthValues(const FileIO& file_io,
   string header;
   double min_depth;
   ifstr >> depth_width >> depth_height >> min_depth >> max_depth;
-    
+
   depth_values.resize(depth_width * depth_height);
   
   average_distance = 0.0;
@@ -515,6 +518,8 @@ double Panorama::InterpolateDepthValue(const double x, const double y) const
 {
     double interpolated_depth_value = -1;
 
+    const double SHIFT_THRESHOLD = 0;
+
     int index_1 = static_cast<int>(y) * depth_width + static_cast<int>(x);
     int index_2 = static_cast<int>(y) * depth_width + static_cast<int>(x + 1);
     int index_3 = static_cast<int>(y + 1) * depth_width + static_cast<int>(x);
@@ -547,67 +552,71 @@ double Panorama::InterpolateDepthValue(const double x, const double y) const
         if (depth_value_1 > 0 && depth_value_2 > 0 && depth_value_3 > 0) {
             double area_2 = 0.5 * (x - static_cast<int>(x));
             double area_3 = 0.5 * (y - static_cast<int>(y));
-            if (area_2 + area_3 <= 0.5) {
+            if (area_2 + area_3 <= 0.5 + SHIFT_THRESHOLD) {
                 double area_1 = 0.5 - area_2 - area_3;
                 interpolated_depth_value = depth_value_1 * area_1 + depth_value_2 * area_2 + depth_value_3 * area_3;
+                interpolated_depth_value *= 2;
             }
         } else if (depth_value_2 > 0 && depth_value_3 > 0 && depth_value_4 > 0) {
             double area_2 = 0.5 * (static_cast<int>(y + 1) - y);
             double area_3 = 0.5 * (static_cast<int>(x + 1) - x);
-            if (area_2 + area_3 <= 0.5) {
+            if (area_2 + area_3 <= 0.5 + SHIFT_THRESHOLD) {
                 double area_4 = 0.5 - area_2 - area_3;
                 interpolated_depth_value = depth_value_2 * area_2 + depth_value_3 * area_3 + depth_value_4 * area_4;
+                interpolated_depth_value *= 2;
             }
         } else if (depth_value_1 > 0 && depth_value_3 > 0 && depth_value_4 > 0) {
             double area_1 = 0.5 * (static_cast<int>(y + 1) - y);
             double area_4 = 0.5 * (x - static_cast<int>(x));
-            if (area_1 + area_4 <= 0.5) {
+            if (area_1 + area_4 <= 0.5 + SHIFT_THRESHOLD) {
                 double area_3 = 0.5 - area_1 - area_4;
                 interpolated_depth_value = depth_value_1 * area_1 + depth_value_3 * area_3 + depth_value_4 * area_4;
+                interpolated_depth_value *= 2;
             }
         } else if (depth_value_1 > 0 && depth_value_2 > 0 && depth_value_4 > 0) {
             double area_1 = 0.5 * (static_cast<int>(x + 1) - x);
             double area_4 = 0.5 * (y - static_cast<int>(y));
-            if (area_1 + area_4 <= 0.5) {
+            if (area_1 + area_4 <= 0.5 + SHIFT_THRESHOLD) {
                 double area_2 = 0.5 - area_1 - area_4;
                 interpolated_depth_value = depth_value_1 * area_1 + depth_value_2 * area_2 + depth_value_4 * area_4;
+                interpolated_depth_value *= 2;
             }
         }
         break;
     }
     case 2: {
         if (depth_value_1 > 0 && depth_value_2 > 0) {
-            if (y - static_cast<int>(y) <= 0.5) {
+            if (y - static_cast<int>(y) <= 0.5 + SHIFT_THRESHOLD) {
                 double length_1 = (static_cast<int>(x + 1) - x);
                 double length_2 = (x - static_cast<int>(x));
                 interpolated_depth_value = depth_value_1 * length_1 + depth_value_2 * length_2;
             }
         } else if (depth_value_1 > 0 && depth_value_3 > 0) {
-            if (x - static_cast<int>(x) <= 0.5) {
+            if (x - static_cast<int>(x) <= 0.5 + SHIFT_THRESHOLD) {
                 double length_1 = (static_cast<int>(y + 1) - y);
                 double length_3 = (y - static_cast<int>(y));
                 interpolated_depth_value = depth_value_1 * length_1 + depth_value_3 * length_3;
             }
         } else if (depth_value_2 > 0 && depth_value_4 > 0) {
-            if (static_cast<int>(x + 1) - x <= 0.5) {
+            if (static_cast<int>(x + 1) - x <= 0.5 + SHIFT_THRESHOLD) {
                 double length_2 = (static_cast<int>(y + 1) - y);
                 double length_4 = (y - static_cast<int>(y));
                 interpolated_depth_value = depth_value_2 * length_2 + depth_value_4 * length_4;
             }
         } else if (depth_value_3 > 0 && depth_value_4 > 0) {
-            if (static_cast<int>(y + 1) - y <= 0.5) {
+            if (static_cast<int>(y + 1) - y <= 0.5 + SHIFT_THRESHOLD) {
                 double length_3 = (static_cast<int>(x + 1) - x);
                 double length_4 = (x - static_cast<int>(x));
                 interpolated_depth_value = depth_value_3 * length_3 + depth_value_4 * length_4;
             }
         } else if (depth_value_1 > 0 && depth_value_4 > 0) {
-            if (abs((x - static_cast<int>(x)) - (y - static_cast<int>(y))) <= 0.5) {
+            if (abs((x - static_cast<int>(x)) - (y - static_cast<int>(y))) <= 0.5 + SHIFT_THRESHOLD) {
                 double length_1 = 1 - ((x - static_cast<int>(x)) + (y - static_cast<int>(y))) / 2;
                 double length_4 = ((x - static_cast<int>(x)) + (y - static_cast<int>(y))) / 2;
                 interpolated_depth_value = depth_value_1 * length_1 + depth_value_4 * length_4;
             }
         } else if (depth_value_2 > 0 && depth_value_3 > 0) {
-            if (abs((x - static_cast<int>(x)) + (y - static_cast<int>(y)) - 1) <= 0.5) {
+            if (abs((x - static_cast<int>(x)) + (y - static_cast<int>(y)) - 1) <= 0.5 + SHIFT_THRESHOLD) {
                 double length_2 = 0.5 + ((x - static_cast<int>(x)) - (y - static_cast<int>(y))) / 2;
                 double length_3 = 0.5 - ((x - static_cast<int>(x)) - (y - static_cast<int>(y))) / 2;
                 interpolated_depth_value = depth_value_2 * length_2 + depth_value_3 * length_3;
@@ -617,16 +626,16 @@ double Panorama::InterpolateDepthValue(const double x, const double y) const
     }
     case 1: {
         if (depth_value_1 > 0) {
-            if ((x - static_cast<int>(x)) + (y - static_cast<int>(y)) <= 0.5)
+            if ((x - static_cast<int>(x)) <= 0.5 + SHIFT_THRESHOLD && (y - static_cast<int>(y)) <= 0.5 + SHIFT_THRESHOLD)
                 interpolated_depth_value = depth_value_1;
         } else if (depth_value_2 > 0) {
-            if ((static_cast<int>(x + 1) - x) + (y - static_cast<int>(y)) <= 0.5)
+            if ((static_cast<int>(x + 1) - x) <= 0.5 + SHIFT_THRESHOLD && (y - static_cast<int>(y)) <= 0.5 + SHIFT_THRESHOLD)
                 interpolated_depth_value = depth_value_2;
         } else if (depth_value_3 > 0) {
-            if ((x - static_cast<int>(x)) + (static_cast<int>(y + 1) - y) <= 0.5)
+            if ((x - static_cast<int>(x)) <= 0.5 + SHIFT_THRESHOLD && (static_cast<int>(y + 1) - y) <= 0.5 + SHIFT_THRESHOLD)
                 interpolated_depth_value = depth_value_3;
         } else if (depth_value_4 > 0) {
-            if ((static_cast<int>(x + 1) - x) + (y - static_cast<int>(y + 1) - y) <= 0.5)
+            if ((static_cast<int>(x + 1) - x) <= 0.5 + SHIFT_THRESHOLD && (y - static_cast<int>(y + 1) - y) <= 0.5 + SHIFT_THRESHOLD)
                 interpolated_depth_value = depth_value_4;
         }
         break;
@@ -634,6 +643,19 @@ double Panorama::InterpolateDepthValue(const double x, const double y) const
     case 0:
         break;
     }
+//    if (interpolated_depth_value > 0 && (depth_value_1 <= 0 || interpolated_depth_value < depth_value_1) && (depth_value_2 <= 0 || interpolated_depth_value < depth_value_2)
+//            && (depth_value_3 <= 0 || interpolated_depth_value < depth_value_3) && (depth_value_4 <= 0 || interpolated_depth_value < depth_value_4)) {
+//        cout << num_valid_depth_values << '\t' << x << '\t' << y << endl;
+//        cout << depth_value_1 << '\t' << depth_value_2 << '\t' << depth_value_3 << '\t' << depth_value_4 << '\t' << interpolated_depth_value << endl;
+//        exit(1);
+//    }
+//    if (interpolated_depth_value > 0 && (depth_value_1 <= 0 || interpolated_depth_value > depth_value_1) && (depth_value_2 <= 0 || interpolated_depth_value > depth_value_2)
+//            && (depth_value_3 <= 0 || interpolated_depth_value > depth_value_3) && (depth_value_4 <= 0 || interpolated_depth_value > depth_value_4)) {
+//        cout << num_valid_depth_values << '\t' << x << '\t' << y << endl;
+//        exit(1);
+//    }
+    if (interpolated_depth_value < 0 && num_valid_depth_values > 0)
+        cout << depth_value_1 << '\t' << depth_value_2 << '\t' << depth_value_3 << '\t' << depth_value_4 << endl;
     return interpolated_depth_value;
 }
 

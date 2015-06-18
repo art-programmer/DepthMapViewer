@@ -1,5 +1,5 @@
 #include "main_widget.h"
-#include "../base/panorama.h"
+#include "panorama.h"
 
 #include <fstream>
 #include <iostream>
@@ -218,8 +218,11 @@ void MainWidget::InitializeShaders() {
 
 void MainWidget::initializeGL() {
   initializeOpenGLFunctions();
+
   InitializeShaders();
   glClearColor(background[0], background[1], background[2], 0);
+  glClearColor(1.0, 1.0, 1.0, 0.0);
+
   glEnable(GL_DEPTH_TEST);
 //  glEnable(GL_CULL_FACE);
   glDisable(GL_CULL_FACE);
@@ -231,7 +234,12 @@ void MainWidget::initializeGL() {
 }
 
 void MainWidget::resizeGL(int w, int h) {
-  glViewport(w / 2 - h * image_width / image_height / 2, 0, h * image_width / image_height, h);
+//  glViewport(w / 2 - h * image_width / image_height / 2, 0, h * image_width / image_height, h);
+
+//    int window_size = min(w, h);
+//    glViewport(w / 2 - window_size / 2, h / 2 - window_size / 2, window_size, window_size);
+
+    glViewport(0, 0, w, h);
 
   if (w != current_width || h != current_height) {
     FreeResources();
@@ -397,6 +405,10 @@ void MainWidget::keyPressEvent(QKeyEvent* e) {
     if (e->key() == Qt::Key_Right) {
         transition_progress = 0.0;
         transition_direction = 'R';
+    }
+    if (e->key() == Qt::Key_P) {
+        transition_progress = 0.0;
+        transition_direction = 'P';
     }
 
     if (e->key() == Qt::Key_0) {
@@ -578,28 +590,57 @@ void MainWidget::mouseMoveEvent(QMouseEvent *e) {
   mouseMovePosition = QVector2D(e->localPos());
 
 
-  if (e->buttons() & Qt::LeftButton != 0) {
+  if ((e->buttons() & Qt::LeftButton) != 0) {
       depth_map_renderer.rotateByY(-diff.x() * 0.3);
-      depth_map_renderer.rotateByX(diff.y() * 0.3);
+      depth_map_renderer.rotateByX(-diff.y() * 0.3);
   }
 }
 
 void MainWidget::timerEvent(QTimerEvent *) {
+
+    const double TIME_FOR_EACH_DIRECTION = 3;
+    const double MOVEMENT_FOR_EACH_DIRECTION = 0.01;
+
 //    cout << "timer event" << endl;
     if (transition_progress < 1.0) {
-        transition_progress += 0.02;
         switch (transition_direction) {
         case 'F':
+            transition_progress += 0.02;
             depth_map_renderer.moveByZ(0.001);
             break;
         case 'B':
+            transition_progress += 0.02;
             depth_map_renderer.moveByZ(-0.001);
             break;
         case 'L':
+            transition_progress += 0.02;
             depth_map_renderer.moveByX(0.001);
             break;
         case 'R':
+            transition_progress += 0.02;
             depth_map_renderer.moveByX(-0.001);
+            break;
+        case 'P':
+//            cout << "yes" << endl;
+            transition_progress += 1.0 / (TIME_FOR_EACH_DIRECTION * 6 * 60);
+            if (transition_progress < 1.0 / 12)
+                depth_map_renderer.moveByX(MOVEMENT_FOR_EACH_DIRECTION / (TIME_FOR_EACH_DIRECTION / 2 * 60));
+            else if (transition_progress < 1.0 / 12 * 3)
+                depth_map_renderer.moveByX(-MOVEMENT_FOR_EACH_DIRECTION / (TIME_FOR_EACH_DIRECTION / 2 * 60));
+            else if (transition_progress < 1.0 / 12 * 4)
+                depth_map_renderer.moveByX(MOVEMENT_FOR_EACH_DIRECTION / (TIME_FOR_EACH_DIRECTION / 2 * 60));
+            else if (transition_progress < 1.0 / 12 * 5)
+                depth_map_renderer.moveByY(MOVEMENT_FOR_EACH_DIRECTION / (TIME_FOR_EACH_DIRECTION / 2 * 60));
+            else if (transition_progress < 1.0 / 12 * 7)
+                depth_map_renderer.moveByY(-MOVEMENT_FOR_EACH_DIRECTION / (TIME_FOR_EACH_DIRECTION / 2 * 60));
+            else if (transition_progress < 1.0 / 12 * 8)
+                depth_map_renderer.moveByY(MOVEMENT_FOR_EACH_DIRECTION / (TIME_FOR_EACH_DIRECTION / 2 * 60));
+            else if (transition_progress < 1.0 / 12 * 9)
+                depth_map_renderer.moveByZ(MOVEMENT_FOR_EACH_DIRECTION / (TIME_FOR_EACH_DIRECTION / 2 * 60));
+            else if (transition_progress < 1.0 / 12 * 11)
+                depth_map_renderer.moveByZ(-MOVEMENT_FOR_EACH_DIRECTION / (TIME_FOR_EACH_DIRECTION / 2 * 60));
+            else if (transition_progress < 1.0 / 12 * 12)
+                depth_map_renderer.moveByZ(MOVEMENT_FOR_EACH_DIRECTION / (TIME_FOR_EACH_DIRECTION / 2 * 60));
             break;
         default:
             break;

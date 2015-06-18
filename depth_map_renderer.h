@@ -46,6 +46,13 @@ class DepthMapRenderer : protected QGLFunctions {
 
   void GetBoundaryIndices();
   void RectifyDepthMeshes();
+  void TriangulateBoundaries();
+
+  void ReadTriangles(const FileIO& file_io, const int scene_index);
+  void ReadCameraParameters(const FileIO& file_io, const int scene_index);
+  void InitLayerTriangles(const FileIO& file_io, const int scene_index);
+  void InitTrianglesOri(const FileIO& file_io, const int scene_index);
+  void CreateVBOs();
 
 
   std::vector<Panorama> depth_maps;
@@ -64,11 +71,13 @@ class DepthMapRenderer : protected QGLFunctions {
   std::vector<GLdouble *> depth_meshes_data;
 
   std::vector<std::map<int, std::vector<int> > > layer_surface_boundary_indices;
-
+  std::vector<std::map<int, std::vector<double> > > layer_surface_triangles_2D;
 
   int num_layers;
 
   char rendering_mode;
+
+  int test_texture_id;
 
 
   double view_scale;
@@ -78,6 +87,17 @@ class DepthMapRenderer : protected QGLFunctions {
   double rotate_x;
   double rotate_y;
   double rotate_z;
+
+
+  std::vector<std::map<int, std::vector<double> > > layer_surface_triangles_3D;
+  std::vector<std::map<int, std::vector<double> > > layer_surface_triangles_uv;
+  std::vector<std::vector<double> > layer_triangles;
+  std::vector<double> triangles_ori;
+
+  double focal_length;
+
+  std::vector<GLuint> VBO_ids;
+  std::vector<int> layer_num_triangle_values;
 };
 
 }  // namespace structured_indoor_modeling

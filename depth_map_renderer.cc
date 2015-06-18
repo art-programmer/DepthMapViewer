@@ -17,7 +17,7 @@ namespace structured_indoor_modeling {
 DepthMapRenderer::DepthMapRenderer() {
 //    texture_id = -1;
 
-    view_scale = 0.3;
+    view_scale = 0.1;
     translate_x = 0;
     translate_y = 0;
     translate_z = 0;
@@ -113,6 +113,24 @@ void combineCallback(GLdouble coords[3],
     *dataOut = vertex;
 }
 
+void DepthMapRenderer::CreateVBOs()
+{
+    VBO_ids.resize(num_layers + 1);
+    layer_num_triangle_values.resize(num_layers + 1);
+//    GLuint *id = new GLuint[1];
+//    GLuint test_id;
+//    glGenBuffers(1, id);
+    glGenBuffers(num_layers + 1, &VBO_ids[0]);
+    for (int layer_index = 0; layer_index < num_layers; layer_index++) {
+        glBindBuffer(GL_ARRAY_BUFFER, VBO_ids[layer_index]);
+        glBufferData(GL_ARRAY_BUFFER, layer_triangles[layer_index].size() / 81 * 9, &layer_triangles[layer_index][0], GL_STATIC_DRAW);
+        layer_num_triangle_values[layer_index] = layer_triangles[layer_index].size() / 81 * 9;
+    }
+    glBindBuffer(GL_ARRAY_BUFFER, VBO_ids[num_layers]);
+    glBufferData(GL_ARRAY_BUFFER, triangles_ori.size(), &triangles_ori[0], GL_STATIC_DRAW);
+    layer_num_triangle_values[num_layers] = triangles_ori.size();
+}
+
 void DepthMapRenderer::Render(const double alpha, QOpenGLShaderProgram* program) {
 
 //    const Vector3d camera_center(0, 0, 0);
@@ -127,16 +145,26 @@ void DepthMapRenderer::Render(const double alpha, QOpenGLShaderProgram* program)
 //    glRotated(rotate_z, 0, 0, 1);
 
 
-    bool use_shaders = false;
-    bool use_tesselator = true;
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    bool use_shaders = true;
+    bool use_tesselator = false;
+    bool use_triangulation = false;
+    bool use_triangles = true;
+    bool use_VBOs = true;
+
+
     if (use_shaders) {
       if (!program->bind()) {
         cerr << "Cannot bind." << endl;
         exit (1);
       }
       program->setUniformValue("phi_range", static_cast<float>(depth_maps[0].GetPhiRange()));
-      program->setUniformValue("image_width", static_cast<float>(image_width - 1));
-      program->setUniformValue("image_height", static_cast<float>(image_height - 1));
+      program->setUniformValue("image_width", static_cast<float>(image_width));
+      program->setUniformValue("image_height", static_cast<float>(image_height));
+
+      program->setUniformValue("focal_length", static_cast<float>(focal_length));
+
 
       GLfloat global_to_local[4][4];
       for (int y = 0; y < 4; ++y) {
@@ -172,6 +200,7 @@ void DepthMapRenderer::Render(const double alpha, QOpenGLShaderProgram* program)
 
 
   set<int> rendering_layers;
+//  cout << rendering_mode << endl;
   switch (rendering_mode) {
   case '0':
       rendering_layers.insert(0);
@@ -187,12 +216,69 @@ void DepthMapRenderer::Render(const double alpha, QOpenGLShaderProgram* program)
       rendering_layers.insert(1);
       rendering_layers.insert(2);
       break;
+  case 'O':
+      rendering_layers.insert(num_layers);
   default:
       break;
   }
 
 
-  if (use_tesselator == true) {
+  if (false) {
+      glActiveTexture(GL_TEXTURE0);
+
+      glBindTexture(GL_TEXTURE_2D, test_texture_id);
+      glEnable(GL_TEXTURE_2D);
+
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+      double triangle_edge_length = 1;
+      glBegin(GL_TRIANGLES);
+      glTexCoord2d(0, 0);
+      glVertex3d(-triangle_edge_length / 2, -triangle_edge_length / 2, -1);
+      glTexCoord2d(1, 0);
+      glVertex3d(triangle_edge_length / 2, -triangle_edge_length / 2, -1);
+      glTexCoord2d(1, 1);
+      glVertex3d(triangle_edge_length / 2, triangle_edge_length / 2, -1);
+      glTexCoord2d(0, 0);
+      glVertex3d(-triangle_edge_length / 2, -triangle_edge_length / 2, -1);
+      glTexCoord2d(0, 1);
+      glVertex3d(-triangle_edge_length / 2, triangle_edge_length / 2, -1);
+      glTexCoord2d(1, 1);
+      glVertex3d(triangle_edge_length / 2, triangle_edge_length / 2, -1);
+      glEnd();
+      return;
+  }
+
+  if (use_VBOs == true) {
+      for (int layer_index = 0; layer_index < num_layers + 1; layer_index++) {
+          if (rendering_layers.count(layer_index) == 0)
+              continue;
+
+          QImage test_image = rgb_images[layer_index];
+
+          glActiveTexture(GL_TEXTURE0);
+
+          glBindTexture(GL_TEXTURE_2D, texture_ids[layer_index]);
+          glEnable(GL_TEXTURE_2D);
+
+          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
+          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+          glBindBuffer(GL_ARRAY_BUFFER, VBO_ids[layer_index]);
+          glEnableClientState(GL_VERTEX_ARRAY);
+          glVertexPointer(3, GL_DOUBLE, 0, 0);
+          glDrawArrays(GL_TRIANGLES, 0, layer_num_triangle_values[layer_index]);
+          glDisableClientState((GL_VERTEX_ARRAY));
+          glBindBuffer(GL_ARRAY_BUFFER, 0);
+      }
+      return;
+  }
+  else if (use_tesselator == true) {
 
       double vertices[5][3] = {
           {0, 0, -2}, {2, 0, -2}, {1, 1, -2}, {2, 2, -2}, {0, 2, -2}
@@ -264,148 +350,269 @@ void DepthMapRenderer::Render(const double alpha, QOpenGLShaderProgram* program)
           break;
       }
       gluDeleteTess(tobj);
-      if (use_shaders)
-          program->release();
-      return;
-  }
-
-  for (int layer_index = 0; layer_index < num_layers; layer_index++) {
-      if (rendering_layers.count(layer_index) == 0)
-          continue;
-      vector<vector<double> > depth_mesh = depth_meshes[layer_index];
-
-      glActiveTexture(GL_TEXTURE0);
-
-      glBindTexture(GL_TEXTURE_2D, texture_ids[layer_index]);
-      glEnable(GL_TEXTURE_2D);
-
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-
-
-      glBegin(GL_TRIANGLES);
-      // glColor4f(alpha, alpha, alpha, 1.0);
-    //  cout << image_width << '\t' << image_height << '\t' << depth_mesh.size() << endl;
-    //  exit(1);
-    //  glColor4f(1, 0, 0, 1);
-
-      for (int y = 0; y < image_height - 1; ++y) {
-        for (int x = 0; x < image_width - 1; ++x) {
-          const int right_x = (x + 1) % image_width;
-          const int index00 = y * image_width + x;
-          const int index01 = y * image_width + right_x;
-          const int index10 = (y + 1) * image_width + x;
-          const int index11 = (y + 1) * image_width + right_x;
-
-          const vector<double> v00 = depth_mesh[index00];
-          const vector<double> v10 = depth_mesh[index10];
-          const vector<double> v01 = depth_mesh[index01];
-          const vector<double> v11 = depth_mesh[index11];
-
-          if (v00[2] > 0 || v01[2] > 0 || v10[2] > 0 || v11[2] > 0)
+  } else {
+      for (int layer_index = num_layers - 1; layer_index >= 0; layer_index--) {
+          if (rendering_layers.count(layer_index) == 0)
               continue;
 
-    //      cout << v00[0] << '\t' << v00[1] << '\t' << v00[2] << endl;
-    //      cout << v01[0] << '\t' << v01[1] << '\t' << v01[2] << endl;
-    //      cout << v10[0] << '\t' << v10[1] << '\t' << v10[2] << endl;
-    //      cout << v11[0] << '\t' << v11[1] << '\t' << v11[2] << endl;
-    //      exit(1);
+          glClear(GL_DEPTH_BUFFER_BIT);
 
-          // 00
-          if (!use_shaders)
-              glTexCoord2d((x) / static_cast<double>(image_width - 1), 1.0 - (y) / static_cast<double>(image_height - 1));
-          glVertex3d(v00[0], v00[1], v00[2]);
-          // 10
-          if (!use_shaders)
-              glTexCoord2d((x) / static_cast<double>(image_width - 1), 1.0 - (y + 1) / static_cast<double>(image_height - 1));
-          glVertex3d(v10[0], v10[1], v10[2]);
-          // 01
-          if (!use_shaders)
-              glTexCoord2d((x + 1) / static_cast<double>(image_width - 1), 1.0 - (y) / static_cast<double>(image_height - 1));
-          glVertex3d(v01[0], v01[1], v01[2]);
+          QImage test_image = rgb_images[layer_index];
 
-          // 10
-          if (!use_shaders)
-              glTexCoord2d((x) / static_cast<double>(image_width - 1), 1.0 - (y + 1) / static_cast<double>(image_height - 1));
-          glVertex3d(v10[0], v10[1], v10[2]);
-          // 11
-          if (!use_shaders)
-              glTexCoord2d((x + 1) / static_cast<double>(image_width - 1), 1.0 - (y + 1) / static_cast<double>(image_height - 1));
-          glVertex3d(v11[0], v11[1], v11[2]);
-          // 01
-          if (!use_shaders)
-              glTexCoord2d((x + 1) / static_cast<double>(image_width - 1), 1.0 - (y) / static_cast<double>(image_height - 1));
-          glVertex3d(v01[0], v01[1], v01[2]);
-        }
+          glActiveTexture(GL_TEXTURE0);
+
+          glBindTexture(GL_TEXTURE_2D, texture_ids[layer_index]);
+          glEnable(GL_TEXTURE_2D);
+
+          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
+          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+
+          // glColor4f(alpha, alpha, alpha, 1.0);
+        //  cout << image_width << '\t' << image_height << '\t' << depth_mesh.size() << endl;
+        //  exit(1);
+        //  glColor4f(1, 0, 0, 1);
+
+          glBegin(GL_TRIANGLES);
+
+          if (use_triangles == true) {
+            vector<double> &triangles = layer_triangles[layer_index];
+//              cout << surface_triangles_3D.size() << endl;
+//              cout << surface_triangles_uv.size() << endl;
+            for (int triangle_index = 0; triangle_index < triangles.size() / 9; triangle_index++) {
+
+                glVertex3d(triangles[triangle_index * 9 + 0], triangles[triangle_index * 9 + 1], triangles[triangle_index * 9 + 2]);
+                glVertex3d(triangles[triangle_index * 9 + 3], triangles[triangle_index * 9 + 4], triangles[triangle_index * 9 + 5]);
+                glVertex3d(triangles[triangle_index * 9 + 6], triangles[triangle_index * 9 + 7], triangles[triangle_index * 9 + 8]);
+
+//                glVertex3d(v_1[0], v_1[1], v_1[2]);
+//                glVertex3d(v_2[0], v_2[1], v_2[2]);
+//                glVertex3d(v_3[0], v_3[1], v_3[2]);
+            }
+
+//              map<int, vector<double> > surface_triangles_3D = layer_surface_triangles_3D[layer_index];
+//              map<int, vector<double> > surface_triangles_uv = layer_surface_triangles_uv[layer_index];
+////              cout << surface_triangles_3D.size() << endl;
+////              cout << surface_triangles_uv.size() << endl;
+//              for (map<int, vector<double> >::const_iterator surface_it = surface_triangles_3D.begin(); surface_it != surface_triangles_3D.end(); surface_it++) {
+//                vector<double> triangles_3D = surface_it->second;
+//                vector<double> triangles_uv = surface_triangles_uv[surface_it->first];
+//                for (int triangle_index = 0; triangle_index < triangles_3D.size() / 9; triangle_index++) {
+
+//                    const vector<double> v_1(triangles_3D.begin() + triangle_index * 9 + 0, triangles_3D.begin() + triangle_index * 9 + 3);
+//                    const vector<double> v_2(triangles_3D.begin() + triangle_index * 9 + 3, triangles_3D.begin() + triangle_index * 9 + 6);
+//                    const vector<double> v_3(triangles_3D.begin() + triangle_index * 9 + 6, triangles_3D.begin() + triangle_index * 9 + 9);
+
+//                    if (v_1[2] > 0 || v_2[2] > 0 || v_3[2] > 0) {
+//                        cout << v_1[2] << '\t' << v_2[2] << '\t' << v_3[2] << endl;
+////                        cout << triangles_2D[triangle_index * 6 + 0] << '\t' << triangles_2D[triangle_index * 6 + 1] << '\t' << triangles_2D[triangle_index * 6 + 2]
+////                                                                     << '\t' << triangles_2D[triangle_index * 6 + 3] << '\t' << triangles_2D[triangle_index * 6 + 4]
+////                                                                     << '\t' << triangles_2D[triangle_index * 6 + 5] << endl;
+//                        continue;
+//                    }aversense
+
+////                    if (abs(-v_1[0] / v_1[2] * static_cast<float>(focal_length) / image_width + 0.5 - triangles_uv[triangle_index * 6 + 0]) > 0.0001) {
+////                        cout << -v_1[0] / v_1[2] * focal_length / image_width + 0.5 << '\t' << triangles_uv[triangle_index * 6 + 0] << endl;
+////                        exit(1);
+////                    }
+////                    if (abs(-v_2[0] / v_2[2] * static_cast<float>(focal_length) / image_width + 0.5 - triangles_uv[triangle_index * 6 + 2]) > 0.0001) {
+////                        cout << -v_2[0] / v_2[2] * focal_length / image_width + 0.5 << '\t' << triangles_uv[triangle_index * 6 + 2] << endl;
+////                        exit(1);
+////                    }
+////                    if (abs(-v_3[0] / v_3[2] * static_cast<float>(focal_length) / image_width + 0.5 - triangles_uv[triangle_index * 6 + 4]) > 0.0001) {
+////                        cout << -v_3[0] / v_3[2] * focal_length / image_width + 0.5 << '\t' << triangles_uv[triangle_index * 6 + 4] << endl;
+////                        exit(1);
+////                    }
+
+//                    // 00
+//                    if (!use_shaders)
+//                        glTexCoord2d(triangles_uv[triangle_index * 6 + 0], triangles_uv[triangle_index * 6 + 1]);
+//                    glVertex3d(v_1[0], v_1[1], v_1[2]);
+//                    // 10
+//                    if (!use_shaders)
+//                        glTexCoord2d(triangles_uv[triangle_index * 6 + 2], triangles_uv[triangle_index * 6 + 3]);
+//                    glVertex3d(v_2[0], v_2[1], v_2[2]);
+//                    // 01
+//                    if (!use_shaders)
+//                        glTexCoord2d(triangles_uv[triangle_index * 6 + 4], triangles_uv[triangle_index * 6 + 5]);
+//                    glVertex3d(v_3[0], v_3[1], v_3[2]);
+//                }aversense
+//              }
+          }
+          else if (use_triangulation) {
+              vector<vector<double> > depth_mesh = depth_meshes[layer_index];
+              map<int, vector<double> > surface_triangles_2D = layer_surface_triangles_2D[layer_index];
+              for (map<int, vector<double> >::const_iterator surface_it = surface_triangles_2D.begin(); surface_it != surface_triangles_2D.end(); surface_it++) {
+                vector<double> triangles_2D = surface_it->second;
+                for (int triangle_index = 0; triangle_index < triangles_2D.size() / 6; triangle_index++) {
+                    const int index_1 = static_cast<int>(triangles_2D[triangle_index * 6 + 1] + 0.5) * image_width + static_cast<int>(triangles_2D[triangle_index * 6 + 0] + 0.5);
+                    const int index_2 = static_cast<int>(triangles_2D[triangle_index * 6 + 3] + 0.5) * image_width + static_cast<int>(triangles_2D[triangle_index * 6 + 2] + 0.5);
+                    const int index_3 = static_cast<int>(triangles_2D[triangle_index * 6 + 5] + 0.5) * image_width + static_cast<int>(triangles_2D[triangle_index * 6 + 4] + 0.5);
+
+                    const vector<double> v_1 = depth_mesh[index_1];
+                    const vector<double> v_2 = depth_mesh[index_2];
+                    const vector<double> v_3 = depth_mesh[index_3];
+
+                    if (v_1[2] > 0 || v_2[2] > 0 || v_3[2] > 0) {
+    //                    cout << v_1[2] << '\t' << v_2[2] << '\t' << v_3[2] << endl;
+    //                    cout << triangles_2D[triangle_index * 6 + 0] << '\t' << triangles_2D[triangle_index * 6 + 1] << '\t' << triangles_2D[triangle_index * 6 + 2]
+    //                                                                 << '\t' << triangles_2D[triangle_index * 6 + 3] << '\t' << triangles_2D[triangle_index * 6 + 4]
+    //                                                                 << '\t' << triangles_2D[triangle_index * 6 + 5] << endl;
+                        continue;
+                    }
+
+              //      cout << v00[0] << '\t' << v00[1] << '\t' << v00[2] << endl;
+              //      cout << v01[0] << '\t' << v01[1] << '\t' << v01[2] << endl;
+              //      cout << v10[0] << '\t' << v10[1] << '\t' << v10[2] << endl;
+              //      cout << v11[0] << '\t' << v11[1] << '\t' << v11[2] << endl;
+              //      exit(1);
+
+                    // 00
+                    if (!use_shaders)
+                        glTexCoord2d((index_1 % image_width - 0.0) / static_cast<double>(image_width - 1), 1.0 - (index_1 / image_width - 0) / static_cast<double>(image_height - 1));
+                    glVertex3d(v_1[0], v_1[1], v_1[2]);
+                    // 10
+                    if (!use_shaders)
+                        glTexCoord2d((index_2 % image_width - 0.0) / static_cast<double>(image_width - 1), 1.0 - (index_2 / image_width - 0) / static_cast<double>(image_height - 1));
+                    glVertex3d(v_2[0], v_2[1], v_2[2]);
+                    // 01
+                    if (!use_shaders)
+                        glTexCoord2d((index_3 % image_width - 0.0) / static_cast<double>(image_width - 1), 1.0 - (index_3 / image_width - 0) / static_cast<double>(image_height - 1));
+                    glVertex3d(v_3[0], v_3[1], v_3[2]);
+                }
+              }
+          } else {
+              vector<vector<double> > depth_mesh = depth_meshes[layer_index];
+              for (int y = 0; y < image_height - 1; ++y) {
+                for (int x = 0; x < image_width - 1; ++x) {
+                  const int right_x = (x + 1) % image_width;
+                  const int index00 = y * image_width + x;
+                  const int index01 = y * image_width + right_x;
+                  const int index10 = (y + 1) * image_width + x;
+                  const int index11 = (y + 1) * image_width + right_x;
+
+                  const vector<double> v00 = depth_mesh[index00];
+                  const vector<double> v10 = depth_mesh[index10];
+                  const vector<double> v01 = depth_mesh[index01];
+                  const vector<double> v11 = depth_mesh[index11];
+
+                  if (v00[2] > 0 || v01[2] > 0 || v10[2] > 0 || v11[2] > 0)
+                      continue;
+
+    //              cout << v00[0] << '\t' << v00[1] << '\t' << v00[2] << endl;
+    //              cout << v01[0] << '\t' << v01[1] << '\t' << v01[2] << endl;
+    //              cout << v10[0] << '\t' << v10[1] << '\t' << v10[2] << endl;
+    //              cout << v11[0] << '\t' << v11[1] << '\t' << v11[2] << endl;
+            //      exit(1);
+
+                  // 00
+                  if (!use_shaders)
+                      glTexCoord2d((x) / static_cast<double>(image_width - 1), 1.0 - (y) / static_cast<double>(image_height - 1));
+                  glVertex3d(v00[0], v00[1], v00[2]);
+                  // 10
+                  if (!use_shaders)
+                      glTexCoord2d((x) / static_cast<double>(image_width - 1), 1.0 - (y + 1) / static_cast<double>(image_height - 1));
+                  glVertex3d(v10[0], v10[1], v10[2]);
+                  // 01
+                  if (!use_shaders)
+                      glTexCoord2d((x + 1) / static_cast<double>(image_width - 1), 1.0 - (y) / static_cast<double>(image_height - 1));
+                  glVertex3d(v01[0], v01[1], v01[2]);
+
+                  // 10
+                  if (!use_shaders)
+                      glTexCoord2d((x) / static_cast<double>(image_width - 1), 1.0 - (y + 1) / static_cast<double>(image_height - 1));
+                  glVertex3d(v10[0], v10[1], v10[2]);
+                  // 11
+                  if (!use_shaders)
+                      glTexCoord2d((x + 1) / static_cast<double>(image_width - 1), 1.0 - (y + 1) / static_cast<double>(image_height - 1));
+                  glVertex3d(v11[0], v11[1], v11[2]);
+                  // 01
+                  if (!use_shaders)
+                      glTexCoord2d((x + 1) / static_cast<double>(image_width - 1), 1.0 - (y) / static_cast<double>(image_height - 1));
+                  glVertex3d(v01[0], v01[1], v01[2]);
+                }
+              }
+          }
+          glEnd();
       }
-      glEnd();
-  }
 
-  if (rendering_mode == 'O') {
-      glActiveTexture(GL_TEXTURE0);
+      if (rendering_mode == 'O') {
+          program->setUniformValue("image_width", static_cast<float>(image_width));
+          program->setUniformValue("image_height", static_cast<float>(image_height));
 
-      glBindTexture(GL_TEXTURE_2D, texture_ids[num_layers]);
-      glEnable(GL_TEXTURE_2D);
+          glActiveTexture(GL_TEXTURE0);
 
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+          glBindTexture(GL_TEXTURE_2D, texture_ids[num_layers]);
+          glEnable(GL_TEXTURE_2D);
 
-      glBegin(GL_TRIANGLES);
+          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
-      QImage &ori_image = rgb_images[num_layers];
-      int ori_image_width = ori_image.width();
-      int ori_image_height = ori_image.height();
-//      cout << ori_image_width << '\t' << ori_image_height << endl;
-//      ori_image.save("test.bmp");
-      for (int y = 0; y < ori_image_height - 1; ++y) {
-        for (int x = 0; x < ori_image_width - 1; ++x) {
-          const int right_x = (x + 1) % ori_image_width;
-          const int index00 = y * ori_image_width + x;
-          const int index01 = y * ori_image_width + right_x;
-          const int index10 = (y + 1) * ori_image_width + x;
-          const int index11 = (y + 1) * ori_image_width + right_x;
+          glBegin(GL_TRIANGLES);
 
-          const Vector3d v00 = ori_depth_mesh[index00];
-          const Vector3d v10 = ori_depth_mesh[index10];
-          const Vector3d v01 = ori_depth_mesh[index01];
-          const Vector3d v11 = ori_depth_mesh[index11];
+          for (int triangle_index = 0; triangle_index < triangles_ori.size() / 9; triangle_index++) {
+//              glTexCoord2d((x + 0.5) / static_cast<double>(ori_image_width), 1.0 - (y + 0.5) / static_cast<double>(ori_image_height));
+              glVertex3d(triangles_ori[triangle_index * 9 + 0], triangles_ori[triangle_index * 9 + 1], triangles_ori[triangle_index * 9 + 2]);
+              glVertex3d(triangles_ori[triangle_index * 9 + 3], triangles_ori[triangle_index * 9 + 4], triangles_ori[triangle_index * 9 + 5]);
+              glVertex3d(triangles_ori[triangle_index * 9 + 6], triangles_ori[triangle_index * 9 + 7], triangles_ori[triangle_index * 9 + 8]);
+          }
+          glEnd();
 
-          if (v00[2] > 0 || v01[2] > 0 || v10[2] > 0 || v11[2] > 0)
-              continue;
+//          QImage &ori_image = rgb_images[num_layers];
+//          int ori_image_width = ori_image.width();
+//          int ori_image_height = ori_image.height();
+//    //      cout << ori_image_width << '\t' << ori_image_height << endl;
+//    //      ori_image.save("test.bmp");
+//          for (int y = 0; y < ori_image_height - 1; ++y) {
+//            for (int x = 0; x < ori_image_width - 1; ++x) {
+//              const int right_x = (x + 1) % ori_image_width;
+//              const int index00 = y * ori_image_width + x;
+//              const int index01 = y * ori_image_width + right_x;
+//              const int index10 = (y + 1) * ori_image_width + x;
+//              const int index11 = (y + 1) * ori_image_width + right_x;
 
-          // 00
-//          if (!use_shaders)
-              glTexCoord2d((x + 0.5) / static_cast<double>(ori_image_width), 1.0 - (y + 0.5) / static_cast<double>(ori_image_height));
-          glVertex3d(v00[0], v00[1], v00[2]);
-          // 10
-//          if (!use_shaders)
-              glTexCoord2d((x + 0.5) / static_cast<double>(ori_image_width), 1.0 - (y + 0.5 + 1) / static_cast<double>(ori_image_height));
-          glVertex3d(v10[0], v10[1], v10[2]);
-          // 01
-//          if (!use_shaders)
-              glTexCoord2d((x + 0.5 + 1) / static_cast<double>(ori_image_width), 1.0 - (y + 0.5) / static_cast<double>(ori_image_height));
-          glVertex3d(v01[0], v01[1], v01[2]);
+//              const Vector3d v00 = ori_depth_mesh[index00];
+//              const Vector3d v10 = ori_depth_mesh[index10];
+//              const Vector3d v01 = ori_depth_mesh[index01];
+//              const Vector3d v11 = ori_depth_mesh[index11];
 
-          // 10
-//          if (!use_shaders)
-              glTexCoord2d((x + 0.5) / static_cast<double>(ori_image_width), 1.0 - (y + 0.5 + 1) / static_cast<double>(ori_image_height));
-          glVertex3d(v10[0], v10[1], v10[2]);
-          // 11
-//          if (!use_shaders)
-              glTexCoord2d((x + 0.5 + 1) / static_cast<double>(ori_image_width), 1.0 - (y + 0.5 + 1) / static_cast<double>(ori_image_height));
-          glVertex3d(v11[0], v11[1], v11[2]);
-          // 01
-//          if (!use_shaders)
-              glTexCoord2d((x + 0.5 + 1) / static_cast<double>(ori_image_width), 1.0 - (y + 0.5) / static_cast<double>(ori_image_height));
-          glVertex3d(v01[0], v01[1], v01[2]);
-        }
+//              if (v00[2] > 0 || v01[2] > 0 || v10[2] > 0 || v11[2] > 0)
+//                  continue;
+
+//              // 00
+//    //          if (!use_shaders)
+//                  glTexCoord2d((x + 0.5) / static_cast<double>(ori_image_width), 1.0 - (y + 0.5) / static_cast<double>(ori_image_height));
+//              glVertex3d(v00[0], v00[1], v00[2]);
+//              // 10
+//    //          if (!use_shaders)
+//                  glTexCoord2d((x + 0.5) / static_cast<double>(ori_image_width), 1.0 - (y + 0.5 + 1) / static_cast<double>(ori_image_height));
+//              glVertex3d(v10[0], v10[1], v10[2]);
+//              // 01
+//    //          if (!use_shaders)
+//                  glTexCoord2d((x + 0.5 + 1) / static_cast<double>(ori_image_width), 1.0 - (y + 0.5) / static_cast<double>(ori_image_height));
+//              glVertex3d(v01[0], v01[1], v01[2]);
+
+//              // 10
+//    //          if (!use_shaders)
+//                  glTexCoord2d((x + 0.5) / static_cast<double>(ori_image_width), 1.0 - (y + 0.5 + 1) / static_cast<double>(ori_image_height));
+//              glVertex3d(v10[0], v10[1], v10[2]);
+//              // 11
+//    //          if (!use_shaders)
+//                  glTexCoord2d((x + 0.5 + 1) / static_cast<double>(ori_image_width), 1.0 - (y + 0.5 + 1) / static_cast<double>(ori_image_height));
+//              glVertex3d(v11[0], v11[1], v11[2]);
+//              // 01
+//    //          if (!use_shaders)
+//                  glTexCoord2d((x + 0.5 + 1) / static_cast<double>(ori_image_width), 1.0 - (y + 0.5) / static_cast<double>(ori_image_height));
+//              glVertex3d(v01[0], v01[1], v01[2]);
+//            }
+//          }
+//          glEnd();
       }
-      glEnd();
-  }
+    }
 
   if (use_shaders)
       program->release();
@@ -431,16 +638,38 @@ void DepthMapRenderer::Init(const FileIO& file_io,
 //    exit (1);
 //  }
 
-  InitDepthMeshes(file_io, scene_index);
 
-  GetBoundaryIndices();
-  RectifyDepthMeshes();
+//   ReadTriangles(file_io, scene_index);
+   ReadCameraParameters(file_io, scene_index);
+   InitLayerTriangles(file_io, scene_index);
+   InitTrianglesOri(file_io, scene_index);
+
+
+//  InitDepthMeshes(file_io, scene_index);
+//  TriangulateBoundaries();
+
+//  cout << "done" << endl;
+//  RectifyDepthMeshes();
+
+//  exit(1);
 }
 
 void DepthMapRenderer::InitGL() {
   initializeGLFunctions();
   
   glEnable(GL_TEXTURE_2D);
+
+  int test_image_size = 3;
+  QImage test_image(test_image_size, test_image_size, QImage::Format_RGB888);
+  for (int x = 0; x < test_image_size; x++) {
+      for (int y = 0; y < test_image_size; y++)
+          if ((x + y) % 2 == 0)
+              test_image.setPixel(x, y, qRgb(255, 0, 0));
+          else
+              test_image.setPixel(x, y, qRgb(0, 255, 0));
+      test_image.setPixel(x, 2, qRgb(0, 0, 255));
+  }
+  test_texture_id = widget->bindTexture(test_image);
 
   texture_ids.resize(num_layers + 1);
   for (int layer_index = 0; layer_index < num_layers + 1; layer_index++)
@@ -457,6 +686,10 @@ void DepthMapRenderer::InitGL() {
   // f.ex. texture coordinate (1.1, 1.2) is same as (0.1, 0.2)
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+
+  CreateVBOs();
+
 }
   
 void DepthMapRenderer::InitDepthMeshes(const FileIO& file_io, const int scene_index) {
@@ -486,13 +719,14 @@ void DepthMapRenderer::InitDepthMeshes(const FileIO& file_io, const int scene_in
 
   depth_meshes.resize(num_layers);
   depth_meshes_data.resize(num_layers * image_width * image_height);
+
   for (int layer_index = 0; layer_index < num_layers; layer_index++) {
       const Panorama &depth_map = depth_maps[layer_index];
       vector<vector<double> > depth_mesh(image_width * image_height, vector<double>(3));
 //      double average_depth = depth_map.GetAverageDistance();
       for (int y = 0; y < image_height; ++y) {
         for (int x = 0; x < image_width; ++x) {
-          const Vector2d pixel = depth_map.DepthToRGB(Vector2d(x, y));
+          const Vector2d pixel = depth_map.DepthToRGB(Vector2d(x - 0.5, y - 0.5));
 //          cout << pixel[0] << '\t' << pixel[1] << endl;
           Vector3d vertex = depth_map.Unproject(pixel, depth_map.GetDepth(Vector2d(x - 0.5, y - 0.5)));
           for (int c = 0; c < 3; c++)
@@ -573,6 +807,53 @@ void DepthMapRenderer::rotateByZ(const double delta_angle_z)
 void DepthMapRenderer::setRenderingMode(const char rendering_mode_tmp)
 {
     rendering_mode = rendering_mode_tmp;
+}
+
+void DepthMapRenderer::TriangulateBoundaries()
+{
+    layer_surface_triangles_2D.resize(num_layers);
+    const int ori_image_width = image_width - 1;
+    const int ori_image_height = image_height - 1;
+    for (int layer_index = 0; layer_index < num_layers; layer_index++) {
+//        cout << "layer index: " << layer_index << endl;
+        map<int, vector<int> > surface_boundary_indices;
+//        vector<Vector3d> depth_mesh = depth_meshes[layer_index];
+        vector<int> surface_ids = depth_maps[layer_index].GetSurfaceIds();
+
+        map<int, vector<int> > surface_points;
+        for (int y = 0; y < image_height; ++y) {
+          for (int x = 0; x < image_width; ++x) {
+              double ori_x = x - 0.5;
+              double ori_y = y - 0.5;
+
+              int index_1 = (ori_x >= 0 && ori_y >= 0) ? static_cast<int>(ori_y) * ori_image_width + static_cast<int>(ori_x) : -1;
+              int index_2 = (ori_x < ori_image_width - 1 && ori_y >= 0) ? static_cast<int>(ori_y) * ori_image_width + static_cast<int>(ori_x + 1) : -1;
+              int index_3 = (ori_x >= 0 && ori_y < ori_image_height - 1) ? static_cast<int>(ori_y + 1) * ori_image_width + static_cast<int>(ori_x) : -1;
+              int index_4 = (ori_x < ori_image_width - 1 && ori_y < ori_image_height - 1) ? static_cast<int>(ori_y + 1) * ori_image_width + static_cast<int>(ori_x + 1) : -1;
+
+              set<int> neighbor_surfaces;
+              neighbor_surfaces.insert(index_1 != -1 ? surface_ids[index_1] : -1);
+              neighbor_surfaces.insert(index_2 != -1 ? surface_ids[index_2] : -1);
+              neighbor_surfaces.insert(index_3 != -1 ? surface_ids[index_3] : -1);
+              neighbor_surfaces.insert(index_4 != -1 ? surface_ids[index_4] : -1);
+              if (neighbor_surfaces.size() > 1)
+                  for (set<int>::const_iterator surface_it = neighbor_surfaces.begin(); surface_it != neighbor_surfaces.end(); surface_it++)
+                      if (*surface_it != -1)
+                          surface_boundary_indices[*surface_it].push_back(y * image_width + x);
+              for (set<int>::const_iterator surface_it = neighbor_surfaces.begin(); surface_it != neighbor_surfaces.end(); surface_it++)
+                  if (*surface_it != -1)
+                      surface_points[*surface_it].push_back(y * image_width + x);
+          }
+        }
+        for (map<int, vector<int> >::const_iterator surface_it = surface_points.begin(); surface_it != surface_points.end(); surface_it++) {
+            layer_surface_triangles_2D[layer_index][surface_it->first] = TriangulateSegmentBoundary(surface_it->second, image_width, image_height, layer_index, surface_it->first);
+        }
+
+//        for (map<int, vector<int> >::const_iterator surface_it = surface_boundary_indices.begin(); surface_it != surface_boundary_indices.end(); surface_it++) {
+//            cout << surface_it->first << endl;
+//            layer_surface_triangles_2D[layer_index][surface_it->first] = TriangulateSegmentBoundary(surface_it->second, image_width, image_height);
+//        }
+    }
 }
 
 void DepthMapRenderer::GetBoundaryIndices()
@@ -805,6 +1086,141 @@ void DepthMapRenderer::RectifyDepthMeshes()
         }
         depth_meshes[layer_index] = depth_mesh;
     }
+}
+
+
+void DepthMapRenderer::ReadTriangles(const FileIO &file_io, const int scene_index)
+{
+    string triangles_3D_filename = file_io.GetTriangles3D(scene_index);
+    ifstream triangles_3D_in_str(triangles_3D_filename.c_str());
+    triangles_3D_in_str >> num_layers;
+    layer_surface_triangles_3D.resize(num_layers);
+    for (int layer_index = 0; layer_index < num_layers; layer_index++) {
+        int num_surfaces;
+        triangles_3D_in_str >> num_surfaces;
+        for (int surface_index = 0; surface_index < num_surfaces; surface_index++) {
+            int surface_id, num_triangles;
+            triangles_3D_in_str >> surface_id >> num_triangles;
+            vector<double> triangles_3D(num_triangles * 9);
+            for (int value_index = 0; value_index < num_triangles * 9; value_index++)
+                triangles_3D_in_str >> triangles_3D[value_index];
+            layer_surface_triangles_3D[layer_index][surface_id] = triangles_3D;
+        }
+    }
+    triangles_3D_in_str.close();
+
+    string triangles_uv_filename = file_io.GetTrianglesUv(scene_index);
+    ifstream triangles_uv_in_str(triangles_uv_filename.c_str());
+    triangles_uv_in_str >> num_layers;
+    layer_surface_triangles_uv.resize(num_layers);
+    for (int layer_index = 0; layer_index < num_layers; layer_index++) {
+        int num_surfaces;
+        triangles_uv_in_str >> num_surfaces;
+        for (int surface_index = 0; surface_index < num_surfaces; surface_index++) {
+            int surface_id, num_triangles;
+            triangles_uv_in_str >> surface_id >> num_triangles;
+            vector<double> triangles_uv(num_triangles * 6);
+            for (int value_index = 0; value_index < num_triangles * 6; value_index++)
+                triangles_uv_in_str >> triangles_uv[value_index];
+            layer_surface_triangles_uv[layer_index][surface_id] = triangles_uv;
+        }
+    }
+    triangles_uv_in_str.close();
+
+//    string triangles_ori_filename = file_io.GetTrianglesOri(scene_index);
+//    ifstream triangles_ori_in_str(triangles_ori_filename.c_str());
+//    int num_triangles_ori;
+//    triangles_ori_in_str >> num_triangles_ori;
+//    triangles_ori.resize(num_triangles_ori * 9);
+//    for (int value_index = 0; value_index < num_triangles_ori * 9; value_index++)
+//        triangles_ori_in_str >> triangles_ori[value_index];
+//    triangles_ori_in_str.close();
+}
+
+void DepthMapRenderer::ReadCameraParameters(const FileIO &file_io, const int scene_index)
+{
+    string camera_parameters_filename = file_io.GetCameraParameters(scene_index);
+    ifstream camera_parameters_in_str(camera_parameters_filename.c_str());
+    camera_parameters_in_str >> focal_length >> image_width >> image_height;
+    camera_parameters_in_str.close();
+}
+
+void DepthMapRenderer::InitLayerTriangles(const FileIO &file_io, const int scene_index)
+{
+    layer_triangles.resize(num_layers);
+    for (int layer_index = 0; layer_index < num_layers; layer_index++) {
+        string depth_values_filename = file_io.GetLayerDepthValues(scene_index, layer_index);
+        ifstream depth_values_in_str(depth_values_filename.c_str());
+        int width, height;
+        depth_values_in_str >> width >> height;
+        vector<double> depth_values(width * height);
+        for (int i = 0; i < width * height; i++)
+            depth_values_in_str >> depth_values[i];
+        depth_values_in_str.close();
+
+        for (int x = 0; x < width - 1; x++) {
+           for (int y = 0; y < height - 1; y++) {
+             vector<int> vertex_indices;
+             if (depth_values[y * width + x] > 0 && depth_values[y * width + (x + 1)] > 0 && depth_values[(y + 1) * width + (x + 1)] > 0) {
+                 vertex_indices.push_back(y * width + x);
+                 vertex_indices.push_back(y * width + (x + 1));
+                 vertex_indices.push_back((y + 1) * width + (x + 1));
+             }
+             if (depth_values[y * width + x] > 0 && depth_values[(y + 1) * width + (x + 1)] > 0 && depth_values[(y + 1) * width + x] > 0) {
+                 vertex_indices.push_back(y * width + x);
+                 vertex_indices.push_back((y + 1) * width + (x + 1));
+                 vertex_indices.push_back((y + 1) * width + x);
+             }
+             for (vector<int>::const_iterator index_it = vertex_indices.begin(); index_it != vertex_indices.end(); index_it++) {
+               int vertex_x = *index_it % width;
+               int vertex_y = *index_it / width;
+               double depth = depth_values[*index_it];
+               assert(depth > 0);
+               double X = (vertex_x - (width - 1) * 0.5) * depth / focal_length;
+               double Y = -(vertex_y - (height - 1) * 0.5) * depth / focal_length;
+               double Z = -depth;
+               layer_triangles[layer_index].push_back(X);
+               layer_triangles[layer_index].push_back(Y);
+               layer_triangles[layer_index].push_back(Z);
+             }
+           }
+       }
+    }
+}
+
+void DepthMapRenderer::InitTrianglesOri(const FileIO &file_io, const int scene_index)
+{
+    string depth_values_ori_filename = file_io.GetDepthValuesOri(scene_index);
+    ifstream depth_values_ori_in_str(depth_values_ori_filename.c_str());
+    int width, height;
+    depth_values_ori_in_str >> width >> height;
+    vector<double> depth_values_ori(width * height);
+    for (int i = 0; i < width * height; i++)
+        depth_values_ori_in_str >> depth_values_ori[i];
+    depth_values_ori_in_str.close();
+
+    for (int x = 0; x < width - 1; x++) {
+       for (int y = 0; y < height - 1; y++) {
+         vector<int> vertex_indices;
+         vertex_indices.push_back(y * width + x);
+         vertex_indices.push_back(y * width + (x + 1));
+         vertex_indices.push_back((y + 1) * width + (x + 1));
+         vertex_indices.push_back(y * width + x);
+         vertex_indices.push_back((y + 1) * width + (x + 1));
+         vertex_indices.push_back((y + 1) * width + x);
+         for (vector<int>::const_iterator index_it = vertex_indices.begin(); index_it != vertex_indices.end(); index_it++) {
+           int vertex_x = *index_it % width;
+           int vertex_y = *index_it / width;
+           double depth = depth_values_ori[*index_it];
+           double X = (vertex_x - (width - 1) * 0.5) * depth / focal_length;
+           double Y = -(vertex_y - (height - 1) * 0.5) * depth / focal_length;
+           double Z = -depth;
+           triangles_ori.push_back(X);
+           triangles_ori.push_back(Y);
+           triangles_ori.push_back(Z);
+         }
+       }
+   }
 }
 
 }  // namespace structured_indoor_modeling

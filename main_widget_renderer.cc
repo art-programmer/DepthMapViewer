@@ -52,7 +52,8 @@ namespace structured_indoor_modeling {
 //    glEnable(GL_CULL_FACE);
     glDisable(GL_CULL_FACE);
 
-    
+//    glClearColor(1, 1, 1, 1);
+
     depth_map_renderer.Render(alpha, &panorama_program);
 
 //    switch (navigation.GetCameraStatus()) {

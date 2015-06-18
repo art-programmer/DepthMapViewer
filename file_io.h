@@ -29,6 +29,36 @@ class FileIO {
  FileIO(const std::string data_directory) : data_directory(data_directory) {
   }
 
+ std::string GetTriangles3D(const int scene_index) const
+{
+     sprintf(buffer, "%s/triangles_3D_%03d", data_directory.c_str(), scene_index);
+     return buffer;
+}
+
+ std::string GetTrianglesUv(const int scene_index) const
+{
+     sprintf(buffer, "%s/triangles_uv_%03d", data_directory.c_str(), scene_index);
+     return buffer;
+}
+
+ std::string GetTrianglesOri(const int scene_index) const
+{
+     sprintf(buffer, "%s/triangles_ori_%03d", data_directory.c_str(), scene_index);
+     return buffer;
+}
+
+ std::string GetDepthValuesOri(const int scene_index) const
+{
+     sprintf(buffer, "%s/depth_values_ori_%03d", data_directory.c_str(), scene_index);
+     return buffer;
+}
+
+ std::string GetCameraParameters(const int scene_index) const
+ {
+     sprintf(buffer, "%s/camera_parameters_%03d", data_directory.c_str(), scene_index);
+     return buffer;
+ }
+
  std::string GetLayerTextureImage(const int scene_index, const int layer_index) const
 {
      sprintf(buffer, "%s/texture_image_%03d_%d.bmp", data_directory.c_str(), scene_index, layer_index);
