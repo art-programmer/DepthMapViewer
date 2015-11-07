@@ -49,37 +49,37 @@ class FileIO {
 
  std::string GetDepthValuesOri(const int scene_index) const
 {
-     sprintf(buffer, "%s/depth_values_ori_%03d", data_directory.c_str(), scene_index);
+     sprintf(buffer, "%s/scene_%d/depth_values_ori", data_directory.c_str(), scene_index);
      return buffer;
 }
 
- std::string GetCameraParameters(const int scene_index) const
+ std::string GetRenderingInfo(const int scene_index) const
  {
-     sprintf(buffer, "%s/camera_parameters_%03d", data_directory.c_str(), scene_index);
+     sprintf(buffer, "%s/scene_%d/rendering_info", data_directory.c_str(), scene_index);
      return buffer;
  }
 
  std::string GetLayerTextureImage(const int scene_index, const int layer_index) const
 {
-     sprintf(buffer, "%s/texture_image_%03d_%d.bmp", data_directory.c_str(), scene_index, layer_index);
+     sprintf(buffer, "%s/scene_%d/texture_image_%d.bmp", data_directory.c_str(), scene_index, layer_index);
      return buffer;
 }
 
  std::string GetOriImage(const int scene_index) const
 {
-     sprintf(buffer, "%s/image_%03d.bmp", data_directory.c_str(), scene_index);
+     sprintf(buffer, "%s/scene_%d/texture_image_ori.bmp", data_directory.c_str(), scene_index);
      return buffer;
 }
 
  std::string GetOriPointCloud(const int scene_index) const
 {
-     sprintf(buffer, "%s/point_cloud_%03d", data_directory.c_str(), scene_index);
+     sprintf(buffer, "%s/scene_%d/point_cloud", data_directory.c_str(), scene_index);
      return buffer;
 }
 
  std::string GetLayerDepthValues(const int scene_index, const int layer_index) const
 {
-     sprintf(buffer, "%s/depth_values_%03d_%d", data_directory.c_str(), scene_index, layer_index);
+     sprintf(buffer, "%s/scene_%d/depth_values_%d", data_directory.c_str(), scene_index, layer_index);
      return buffer;
 }
 

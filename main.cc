@@ -48,8 +48,7 @@ int main(int argc, char *argv[]) {
 
   Configuration configuration;
   {
-    configuration.data_directory = "Data";
-    configuration.num_layers = 3;
+    configuration.data_directory = "../../LayerDepthMap/Results";
     configuration.scene_index = 1;
   }
 

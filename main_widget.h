@@ -51,7 +51,7 @@ private:
     //----------------------------------------------------------------------
     // Core data.
 //    std::vector<Panorama> panoramas;  // No image data loaded.
-    std::vector<Panorama> depth_maps;
+//    std::vector<Panorama> depth_maps;
     double image_width;
     double image_height;
 
@@ -91,7 +91,7 @@ private:
     QVector2D mouseMovePosition;
 
     QOpenGLShaderProgram blend_program;
-    QOpenGLShaderProgram panorama_program;
+    QOpenGLShaderProgram depth_map_program;
 
     QTime simple_click_time;
     QTime double_click_time;

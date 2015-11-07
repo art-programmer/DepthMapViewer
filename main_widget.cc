@@ -7,6 +7,8 @@
 #include <math.h>
 #include <Eigen/Dense>
 #include <QMouseEvent>
+#include <QDialog>
+#include <QInputDialog>
 
 #ifdef __linux__
 #include <GL/glu.h>
@@ -14,7 +16,7 @@
 #include <windows.h>
 #include <GL/glu.h>
 //#ifndef __glew_h__
-//#include <GL/glew.h>
+#include <GL/glew.h>
 //#include <GL/glext.h>
 //#endif
 #else
@@ -166,17 +168,18 @@ void MainWidget::InitPanoramasPanoramaRenderers() {
 //    panorama_renderers[i].Init(file_io, panorama_ids[i], &panoramas[i], this);
 //  }
 
-    depth_maps.assign(configuration.num_layers, Panorama());
-    for (int layer_index = 0; layer_index < configuration.num_layers; layer_index++)
-    {
-        depth_maps[layer_index].Init(file_io, configuration.scene_index, layer_index);        
-    }
+
+//    depth_maps.assign(configuration.num_layers, Panorama());
+//    for (int layer_index = 0; layer_index < configuration.num_layers; layer_index++)
+//    {
+//        depth_maps[layer_index].Init(file_io, configuration.scene_index, layer_index);
+//    }
 
     depth_map_renderer = DepthMapRenderer();
 
-    depth_map_renderer.Init(file_io, configuration.scene_index, depth_maps, this);
-    image_width = depth_maps[0].Width();
-    image_height = depth_maps[0].Height();
+    depth_map_renderer.Init(file_io, configuration.scene_index, this);
+//    image_width = depth_maps[0].Width();
+//    image_height = depth_maps[0].Height();
 }
   
 void MainWidget::InitializeShaders() {
@@ -200,13 +203,13 @@ void MainWidget::InitializeShaders() {
   // close();
 
   // Compile vertex shader
-  if (!panorama_program.addShaderFromSourceFile(QOpenGLShader::Vertex, "panorama_vshader.glsl"))
+  if (!depth_map_program.addShaderFromSourceFile(QOpenGLShader::Vertex, "depth_map_vshader.glsl"))
     close();
   // Compile fragment shader
-  if (!panorama_program.addShaderFromSourceFile(QOpenGLShader::Fragment, "panorama_fshader.glsl"))
+  if (!depth_map_program.addShaderFromSourceFile(QOpenGLShader::Fragment, "depth_map_fshader.glsl"))
     close();
   // Link shader pipeline
-  if (!panorama_program.link())
+  if (!depth_map_program.link())
     close();
 
 //  panorama_program.setUniformValue("image_width", static_cast<float>(image_width));
@@ -227,7 +230,7 @@ void MainWidget::initializeGL() {
 //  glEnable(GL_CULL_FACE);
   glDisable(GL_CULL_FACE);
 
-  depth_map_renderer.InitGL();
+  depth_map_renderer.InitGL(&depth_map_program);
 
   // Use QBasicTimer because its faster than QTimer
   timer.start(1000 / 60, this);
@@ -260,8 +263,8 @@ void MainWidget::SetMatrices() {
   const double x_angle = 120 * M_PI / 180.0;
   const double y_angle = 2.0 * atan(tan(x_angle / 2.0) * height() / width());
 
-//  gluPerspective(y_angle * 180.0 / M_PI, width() / static_cast<double>(height()), min_distance, max_distance);
-  gluPerspective(viewing_angle_y, image_width / static_cast<double>(image_height), min_distance, max_distance);
+  gluPerspective(viewing_angle_y, width() / static_cast<double>(height()), min_distance, max_distance);
+//  gluPerspective(viewing_angle_y, image_width / static_cast<double>(image_height), min_distance, max_distance);
 
 //  glFrustum(-1, 1, -1, 1, 0.01, 10);
 
@@ -392,11 +395,11 @@ void MainWidget::mouseDoubleClickEvent(QMouseEvent *e) {
 void MainWidget::keyPressEvent(QKeyEvent* e) {
     if (e->key() == Qt::Key_Up) {
         transition_progress = 0.0;
-        transition_direction = 'F';
+        transition_direction = 'U';
     }
     if (e->key() == Qt::Key_Down) {
         transition_progress = 0.0;
-        transition_direction = 'B';
+        transition_direction = 'D';
     }
     if (e->key() == Qt::Key_Left) {
         transition_progress = 0.0;
@@ -406,13 +409,36 @@ void MainWidget::keyPressEvent(QKeyEvent* e) {
         transition_progress = 0.0;
         transition_direction = 'R';
     }
+    if (e->key() == Qt::Key_I) {
+        transition_progress = 0.0;
+        transition_direction = 'F';
+    }
+    if (e->key() == Qt::Key_O) {
+        transition_progress = 0.0;
+        transition_direction = 'B';
+    }
     if (e->key() == Qt::Key_P) {
         transition_progress = 0.0;
         transition_direction = 'P';
     }
+    if (e->key() == Qt::Key_R) {
+        depth_map_renderer.returnToOriginalViewPoint();
+    }
+    if (e->key() == Qt::Key_S) {
+        bool ok;
+        int scene_index = QInputDialog::getInt(this, "Input scene index.", "scene index: ", 1, 1, 20000, 1, &ok);
+        if (ok == true)
+            depth_map_renderer.resetScene(file_io, scene_index);
+    }
 
-    if (e->key() == Qt::Key_0) {
+    if (e->key() == Qt::Key_Space) {
+        depth_map_renderer.TurnVBOOnOff();
+    }
+    if (e->key() == Qt::Key_A) {
         depth_map_renderer.setRenderingMode('A');
+    }
+    if (e->key() == Qt::Key_Q) {
+        depth_map_renderer.setRenderingMode('O');
     }
     if (e->key() == Qt::Key_1) {
         depth_map_renderer.setRenderingMode('0');
@@ -424,7 +450,25 @@ void MainWidget::keyPressEvent(QKeyEvent* e) {
         depth_map_renderer.setRenderingMode('2');
     }
     if (e->key() == Qt::Key_4) {
-        depth_map_renderer.setRenderingMode('O');
+        depth_map_renderer.setRenderingMode('3');
+    }
+    if (e->key() == Qt::Key_5) {
+        depth_map_renderer.setRenderingMode('4');
+    }
+    if (e->key() == Qt::Key_6) {
+        depth_map_renderer.setRenderingMode('5');
+    }
+    if (e->key() == Qt::Key_7) {
+        depth_map_renderer.setRenderingMode('6');
+    }
+    if (e->key() == Qt::Key_8) {
+        depth_map_renderer.setRenderingMode('7');
+    }
+    if (e->key() == Qt::Key_9) {
+        depth_map_renderer.setRenderingMode('8');
+    }
+    if (e->key() == Qt::Key_0) {
+        depth_map_renderer.setRenderingMode('9');
     }
 
     updateGL();
@@ -599,30 +643,38 @@ void MainWidget::mouseMoveEvent(QMouseEvent *e) {
 void MainWidget::timerEvent(QTimerEvent *) {
 
     const double TIME_FOR_EACH_DIRECTION = 3;
-    const double MOVEMENT_FOR_EACH_DIRECTION = 0.01;
+    const double MOVEMENT_FOR_EACH_DIRECTION = 0.002;
 
+    const double TIME_FOR_SINGLE_MOVEMENT = 1;
 //    cout << "timer event" << endl;
     if (transition_progress < 1.0) {
         switch (transition_direction) {
-        case 'F':
-            transition_progress += 0.02;
-            depth_map_renderer.moveByZ(0.001);
+        case 'U':
+            transition_progress += 1 / (TIME_FOR_SINGLE_MOVEMENT * 60);
+            depth_map_renderer.moveByY(MOVEMENT_FOR_EACH_DIRECTION / 2 / (TIME_FOR_SINGLE_MOVEMENT * 60));
             break;
-        case 'B':
-            transition_progress += 0.02;
-            depth_map_renderer.moveByZ(-0.001);
+        case 'D':
+            transition_progress += TIME_FOR_SINGLE_MOVEMENT / 60;
+            depth_map_renderer.moveByY(-MOVEMENT_FOR_EACH_DIRECTION / 2 / (TIME_FOR_SINGLE_MOVEMENT * 60));
             break;
         case 'L':
-            transition_progress += 0.02;
-            depth_map_renderer.moveByX(0.001);
+            transition_progress += TIME_FOR_SINGLE_MOVEMENT / 60;
+            depth_map_renderer.moveByX(MOVEMENT_FOR_EACH_DIRECTION / 2 / (TIME_FOR_SINGLE_MOVEMENT * 60));
             break;
         case 'R':
-            transition_progress += 0.02;
-            depth_map_renderer.moveByX(-0.001);
+            transition_progress += TIME_FOR_SINGLE_MOVEMENT / 60;
+            depth_map_renderer.moveByX(-MOVEMENT_FOR_EACH_DIRECTION / 2 / (TIME_FOR_SINGLE_MOVEMENT * 60));
+            break;
+        case 'F':
+            transition_progress += TIME_FOR_SINGLE_MOVEMENT / 60;
+            depth_map_renderer.moveByZ(MOVEMENT_FOR_EACH_DIRECTION / 2 / (TIME_FOR_SINGLE_MOVEMENT * 60));
+            break;
+        case 'B':
+            transition_progress += TIME_FOR_SINGLE_MOVEMENT / 60;
+            depth_map_renderer.moveByZ(-MOVEMENT_FOR_EACH_DIRECTION / 2 / (TIME_FOR_SINGLE_MOVEMENT * 60));
             break;
         case 'P':
 //            cout << "yes" << endl;
-            transition_progress += 1.0 / (TIME_FOR_EACH_DIRECTION * 6 * 60);
             if (transition_progress < 1.0 / 12)
                 depth_map_renderer.moveByX(MOVEMENT_FOR_EACH_DIRECTION / (TIME_FOR_EACH_DIRECTION / 2 * 60));
             else if (transition_progress < 1.0 / 12 * 3)
@@ -641,6 +693,7 @@ void MainWidget::timerEvent(QTimerEvent *) {
                 depth_map_renderer.moveByZ(-MOVEMENT_FOR_EACH_DIRECTION / (TIME_FOR_EACH_DIRECTION / 2 * 60));
             else if (transition_progress < 1.0 / 12 * 12)
                 depth_map_renderer.moveByZ(MOVEMENT_FOR_EACH_DIRECTION / (TIME_FOR_EACH_DIRECTION / 2 * 60));
+            transition_progress += 1.0 / (TIME_FOR_EACH_DIRECTION * 6 * 60);
             break;
         default:
             break;

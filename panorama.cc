@@ -23,28 +23,28 @@ bool Panorama::Init(const FileIO& file_io,
   }
   width  = rgb_image.cols;
   height = rgb_image.rows;
-  InitDepthValues(file_io, scene_index, layer_index);
+//  InitDepthValues(file_io, scene_index, layer_index);
 
 
-  ifstream ifstr;
-//  ifstr.open(file_io.GetSurfaceIds(panorama));
-  ifstr.open(file_io.GetLayerSurfaceIds(scene_index, layer_index).c_str());
-  if (!ifstr.is_open()) {
-    cerr << "Cannot open surface ids file." << endl;
-    exit (1);
-  }
+//  ifstream ifstr;
+////  ifstr.open(file_io.GetSurfaceIds(panorama));
+//  ifstr.open(file_io.GetLayerSurfaceIds(scene_index, layer_index).c_str());
+//  if (!ifstr.is_open()) {
+//    cerr << "Cannot open surface ids file." << endl;
+//    exit (1);
+//  }
 
-  int surface_id_width = -1, surface_id_height = -1;
-  ifstr >> surface_id_width >> surface_id_height;
-  surface_ids.resize(surface_id_width * surface_id_height);
+//  int surface_id_width = -1, surface_id_height = -1;
+//  ifstr >> surface_id_width >> surface_id_height;
+//  surface_ids.resize(surface_id_width * surface_id_height);
 
-  for (int y = 0; y < surface_id_height; ++y) {
-    for (int x = 0; x < surface_id_width; ++x) {
-      ifstr >> surface_ids[y * surface_id_width + x];
-    }
-  }
-  ifstr.close();
-//  UpdateSurfaceIds();
+//  for (int y = 0; y < surface_id_height; ++y) {
+//    for (int x = 0; x < surface_id_width; ++x) {
+//      ifstr >> surface_ids[y * surface_id_width + x];
+//    }
+//  }
+//  ifstr.close();
+////  UpdateSurfaceIds();
 
 //  cout << depth_values[235 * depth_width + 14] << '\t' << depth_values[235 * depth_width + 15] << '\t' << depth_values[236 * depth_width + 14] << '\t' << depth_values[236 * depth_width + 15] << endl;
 //  cout << surface_ids[235 * depth_width + 14] << '\t' << surface_ids[235 * depth_width + 15] << '\t' << surface_ids[236 * depth_width + 14] << '\t' << surface_ids[236 * depth_width + 15] << endl;

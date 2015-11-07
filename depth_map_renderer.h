@@ -5,7 +5,7 @@
 #include <map>
 #include <Eigen/Dense>
 #include <QImage>
-#include <QGLFunctions>
+//#include <QGLFunctions>
 #include <QGLWidget>
 #include <QOpenGLShaderProgram>
 
@@ -16,14 +16,14 @@ namespace structured_indoor_modeling {
 
 class Panorama;
 
-class DepthMapRenderer : protected QGLFunctions {
+class DepthMapRenderer {
  public:
   DepthMapRenderer();
   virtual ~DepthMapRenderer();
   void Render(const double alpha, QOpenGLShaderProgram* program);
   // void Init(const PanoramaConfiguration& panorama_configuration, QGLWidget* widget);
-  void Init(const FileIO& file_io, const int scene_index, std::vector<Panorama>& depth_maps_tmp, QGLWidget* widget);
-  void InitGL();
+  void Init(const FileIO& file_io, const int scene_index, QGLWidget* widget);
+  void InitGL(QOpenGLShaderProgram* program);
 
 //  const std::vector<Eigen::Vector3d>& DepthMesh() const { return depth_mesh; }
 //  int DepthWidth() const { return depth_width; }
@@ -39,23 +39,28 @@ class DepthMapRenderer : protected QGLFunctions {
   void rotateByX(const double delta_angle_x);
   void rotateByY(const double delta_angle_y);
   void rotateByZ(const double delta_angle_z);
+  void returnToOriginalViewPoint();
+  void TurnVBOOnOff();
+
+  void resetScene(const FileIO file_io, const int scene_index);
 
 //  DepthMapRenderer& operator = (const DepthMapRenderer &right);
  private:
-  void InitDepthMeshes(const FileIO& file_io, const int scene_index);
+//  void InitDepthMeshes(const FileIO& file_io, const int scene_index);
 
-  void GetBoundaryIndices();
-  void RectifyDepthMeshes();
-  void TriangulateBoundaries();
+//  void GetBoundaryIndices();
+//  void RectifyDepthMeshes();
+//  void TriangulateBoundaries();
 
   void ReadTriangles(const FileIO& file_io, const int scene_index);
-  void ReadCameraParameters(const FileIO& file_io, const int scene_index);
+  void ReadRenderingInfo(const FileIO& file_io, const int scene_index);
   void InitLayerTriangles(const FileIO& file_io, const int scene_index);
   void InitTrianglesOri(const FileIO& file_io, const int scene_index);
-  void CreateVBOs();
+  void CreateVBOs(QOpenGLShaderProgram* program);
 
 
-  std::vector<Panorama> depth_maps;
+
+//  std::vector<Panorama> depth_maps;
   // For texture allocation and deletion.
   QGLWidget* widget;
   
@@ -96,8 +101,15 @@ class DepthMapRenderer : protected QGLFunctions {
 
   double focal_length;
 
+//  std::vector<std::vector<GLuint> > VBO_ids;
+//  std::vector<std::vector<int> > layer_num_triangle_vertices;
+
+  bool use_VBO;
+
   std::vector<GLuint> VBO_ids;
-  std::vector<int> layer_num_triangle_values;
+  std::vector<GLuint> VAO_ids;
+
+//  std::vector<int> layer_num_triangle_vertices;
 };
 
 }  // namespace structured_indoor_modeling

@@ -1,3 +1,4 @@
+#include <GL/glew.h>
 #include <fstream>
 #include <iostream>
 #include "depth_map_renderer.h"
@@ -6,6 +7,7 @@
 
 //#ifdef __linux__
 #include <GL/glu.h>
+
 
 #include <set>
 
@@ -17,7 +19,7 @@ namespace structured_indoor_modeling {
 DepthMapRenderer::DepthMapRenderer() {
 //    texture_id = -1;
 
-    view_scale = 0.1;
+    view_scale = 0.01;
     translate_x = 0;
     translate_y = 0;
     translate_z = 0;
@@ -26,6 +28,8 @@ DepthMapRenderer::DepthMapRenderer() {
     rotate_z = 0;
 
     rendering_mode = 'A';
+
+    use_VBO = true;
 }
 
 DepthMapRenderer::~DepthMapRenderer() {
@@ -113,22 +117,63 @@ void combineCallback(GLdouble coords[3],
     *dataOut = vertex;
 }
 
-void DepthMapRenderer::CreateVBOs()
+void DepthMapRenderer::CreateVBOs(QOpenGLShaderProgram* program)
 {
+//    const int num_triangles_per_VBO = 20000;
+
+//    VBO_ids.resize(num_layers + 1);
+//    layer_num_triangle_vertices.resize(num_layers + 1);
+//    for (int layer_index = 0; layer_index < num_layers; layer_index++) {
+//        if (layer_index != 1)
+//            continue;
+//        int num_VBOs = layer_triangles[layer_index].size() / 9 / num_triangles_per_VBO + 3;
+//        VBO_ids[layer_index].resize(num_VBOs);
+//        layer_num_triangle_vertices[layer_index].resize(num_VBOs);
+//        glGenBuffers(num_layers + 1, &VBO_ids[layer_index][0]);
+//        int num_remaining_triangles = layer_triangles[layer_index].size() / 9;
+//        for (int VBO_index = 0; VBO_index < num_VBOs; VBO_index++) {
+//            int num_triangles = min(num_triangles_per_VBO, num_remaining_triangles);
+//            glBindBuffer(GL_ARRAY_BUFFER, VBO_ids[layer_index][VBO_index]);
+//            glBufferData(GL_ARRAY_BUFFER, num_triangles * 9 * sizeof(GLdouble), &(layer_triangles[layer_index][layer_triangles[layer_index].size() - num_remaining_triangles * 9]), GL_STATIC_DRAW);
+//            layer_num_triangle_vertices[layer_index][VBO_index] = num_triangles * 3;
+////            cout << layer_triangles[layer_index].size() << '\t' << num_remaining_triangles * 9 << endl;
+//            num_remaining_triangles -= num_triangles;
+//        }
+//    }
+
+
+//    VBO_ids.resize(num_layers + 1);
+//    glGenBuffers(num_layers + 1, &VBO_ids[0]);
+////    layer_num_triangle_vertices.resize(num_layers + 1);
+//    for (int layer_index = 0; layer_index < num_layers; layer_index++) {
+//        int num_triangles = layer_triangles[layer_index].size() / 9;
+//        glBindBuffer(GL_ARRAY_BUFFER, VBO_ids[layer_index]);
+//        glBufferData(GL_ARRAY_BUFFER, num_triangles * 9 * sizeof(GLdouble), &layer_triangles[layer_index][0], GL_STATIC_DRAW);
+////        layer_num_triangle_vertices[layer_index] = num_triangles * 3;
+//    }
+//    glBindBuffer(GL_ARRAY_BUFFER, VBO_ids[num_layers]);
+//    glBufferData(GL_ARRAY_BUFFER, triangles_ori.size() * sizeof(GLdouble), &triangles_ori[0], GL_STATIC_DRAW);
+//    layer_num_triangle_vertices[num_layers] = triangles_ori.size() / 3;
+
+
+//    glUseProgram(program);
+//    glUseProgram(program);
+    VAO_ids.resize(num_layers + 1);
+    glGenVertexArrays(num_layers + 1, &VAO_ids[0]);
     VBO_ids.resize(num_layers + 1);
-    layer_num_triangle_values.resize(num_layers + 1);
-//    GLuint *id = new GLuint[1];
-//    GLuint test_id;
-//    glGenBuffers(1, id);
     glGenBuffers(num_layers + 1, &VBO_ids[0]);
-    for (int layer_index = 0; layer_index < num_layers; layer_index++) {
+
+    //    VAOs.resize(num_layers + 1);
+//    QOpenGLContext *context = QOpenGLContext::currentContext();
+    for (int layer_index = 0; layer_index < num_layers + 1; layer_index++) {
+        glBindVertexArray(VAO_ids[layer_index]);
         glBindBuffer(GL_ARRAY_BUFFER, VBO_ids[layer_index]);
-        glBufferData(GL_ARRAY_BUFFER, layer_triangles[layer_index].size() / 81 * 9, &layer_triangles[layer_index][0], GL_STATIC_DRAW);
-        layer_num_triangle_values[layer_index] = layer_triangles[layer_index].size() / 81 * 9;
+        glBufferData(GL_ARRAY_BUFFER, layer_triangles[layer_index].size() * sizeof(GLdouble), &layer_triangles[layer_index][0], GL_STATIC_DRAW);
+        program->bind();
+        glVertexAttribPointer(0, 3, GL_DOUBLE, GL_FALSE, 0, 0);
+        glEnableVertexAttribArray(0);
+        glBindVertexArray(0);
     }
-    glBindBuffer(GL_ARRAY_BUFFER, VBO_ids[num_layers]);
-    glBufferData(GL_ARRAY_BUFFER, triangles_ori.size(), &triangles_ori[0], GL_STATIC_DRAW);
-    layer_num_triangle_values[num_layers] = triangles_ori.size();
 }
 
 void DepthMapRenderer::Render(const double alpha, QOpenGLShaderProgram* program) {
@@ -147,11 +192,13 @@ void DepthMapRenderer::Render(const double alpha, QOpenGLShaderProgram* program)
 
     glClear(GL_COLOR_BUFFER_BIT);
 
+//    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
     bool use_shaders = true;
     bool use_tesselator = false;
     bool use_triangulation = false;
     bool use_triangles = true;
-    bool use_VBOs = true;
+//    bool use_VBO = true;
 
 
     if (use_shaders) {
@@ -159,7 +206,7 @@ void DepthMapRenderer::Render(const double alpha, QOpenGLShaderProgram* program)
         cerr << "Cannot bind." << endl;
         exit (1);
       }
-      program->setUniformValue("phi_range", static_cast<float>(depth_maps[0].GetPhiRange()));
+//      program->setUniformValue("phi_range", static_cast<float>(depth_maps[0].GetPhiRange()));
       program->setUniformValue("image_width", static_cast<float>(image_width));
       program->setUniformValue("image_height", static_cast<float>(image_height));
 
@@ -203,18 +250,21 @@ void DepthMapRenderer::Render(const double alpha, QOpenGLShaderProgram* program)
 //  cout << rendering_mode << endl;
   switch (rendering_mode) {
   case '0':
-      rendering_layers.insert(0);
-      break;
   case '1':
-      rendering_layers.insert(1);
-      break;
   case '2':
-      rendering_layers.insert(2);
+  case '3':
+  case '4':
+  case '5':
+  case '6':
+  case '7':
+  case '8':
+  case '9':
+      if (rendering_mode - '0' < num_layers)
+          rendering_layers.insert(rendering_mode - '0');
       break;
   case 'A':
-      rendering_layers.insert(0);
-      rendering_layers.insert(1);
-      rendering_layers.insert(2);
+      for (int layer_index = 0; layer_index < num_layers; layer_index++)
+          rendering_layers.insert(layer_index);
       break;
   case 'O':
       rendering_layers.insert(num_layers);
@@ -252,12 +302,12 @@ void DepthMapRenderer::Render(const double alpha, QOpenGLShaderProgram* program)
       return;
   }
 
-  if (use_VBOs == true) {
-      for (int layer_index = 0; layer_index < num_layers + 1; layer_index++) {
+  if (use_VBO == true) {
+      for (int layer_index = num_layers; layer_index >= 0; layer_index--) {
           if (rendering_layers.count(layer_index) == 0)
               continue;
 
-          QImage test_image = rgb_images[layer_index];
+          glClear(GL_DEPTH_BUFFER_BIT);
 
           glActiveTexture(GL_TEXTURE0);
 
@@ -269,13 +319,35 @@ void DepthMapRenderer::Render(const double alpha, QOpenGLShaderProgram* program)
           glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
           glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
-          glBindBuffer(GL_ARRAY_BUFFER, VBO_ids[layer_index]);
+////          cout << "why" << endl;
+//          glBindVertexArray(VAO_ids[layer_index]);
+//          glDrawArrays(GL_TRIANGLES, 0, layer_triangles[layer_index].size() / 3);
+//          glBindVertexArray(0);
+
           glEnableClientState(GL_VERTEX_ARRAY);
-          glVertexPointer(3, GL_DOUBLE, 0, 0);
-          glDrawArrays(GL_TRIANGLES, 0, layer_num_triangle_values[layer_index]);
-          glDisableClientState((GL_VERTEX_ARRAY));
+          glVertexPointer(3, GL_DOUBLE, 0, &layer_triangles[layer_index][0]);
+          glDrawArrays(GL_TRIANGLES, 0, layer_triangles[layer_index].size() / 3);
+          glDisableClientState(GL_VERTEX_ARRAY);
           glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+//          glBindBuffer(GL_ARRAY_BUFFER, VBO_ids[layer_index]);
+//          glEnableClientState(GL_VERTEX_ARRAY);
+//          glVertexPointer(3, GL_DOUBLE, 0, 0);
+//          glDrawArrays(GL_TRIANGLES, 0, layer_num_triangle_vertices[layer_index]);
+//          glDisableClientState(GL_VERTEX_ARRAY);
+//          glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+//          for (int VBO_index = 0; VBO_index < VBO_ids[layer_index].size(); VBO_index++) {
+////              cout << VBO_index << '\t' << layer_num_triangle_vertices[layer_index][VBO_index] * 3 << endl;
+//              glEnableClientState(GL_VERTEX_ARRAY);
+//              glBindBuffer(GL_ARRAY_BUFFER, VBO_ids[layer_index][VBO_index]);
+//              glVertexPointer(3, GL_DOUBLE, 0, 0);
+//              glDrawArrays(GL_TRIANGLES, 0, layer_num_triangle_vertices[layer_index][VBO_index]);
+//              glDisableClientState((GL_VERTEX_ARRAY));
+////              glBindBuffer(GL_ARRAY_BUFFER, 0);
+//          }
       }
+//      exit(1);
       return;
   }
   else if (use_tesselator == true) {
@@ -620,12 +692,9 @@ void DepthMapRenderer::Render(const double alpha, QOpenGLShaderProgram* program)
   
 void DepthMapRenderer::Init(const FileIO& file_io,
                             const int scene_index,
-                            std::vector<Panorama>& depth_maps_tmp,
                             QGLWidget* widget_tmp) {
-    num_layers = depth_maps_tmp.size();
-  depth_maps.resize(num_layers);
-  for (int layer_index = 0; layer_index < num_layers; layer_index++)
-    depth_maps[layer_index] = depth_maps_tmp[layer_index];
+
+    ReadRenderingInfo(file_io, scene_index);
   widget = widget_tmp;
   rgb_images.resize(num_layers);
   for (int layer_index = 0; layer_index < num_layers; layer_index++)
@@ -640,7 +709,6 @@ void DepthMapRenderer::Init(const FileIO& file_io,
 
 
 //   ReadTriangles(file_io, scene_index);
-   ReadCameraParameters(file_io, scene_index);
    InitLayerTriangles(file_io, scene_index);
    InitTrianglesOri(file_io, scene_index);
 
@@ -654,22 +722,23 @@ void DepthMapRenderer::Init(const FileIO& file_io,
 //  exit(1);
 }
 
-void DepthMapRenderer::InitGL() {
-  initializeGLFunctions();
+void DepthMapRenderer::InitGL(QOpenGLShaderProgram* program) {
+//  initializeGLFunctions();
+    glewInit();
   
   glEnable(GL_TEXTURE_2D);
 
-  int test_image_size = 3;
-  QImage test_image(test_image_size, test_image_size, QImage::Format_RGB888);
-  for (int x = 0; x < test_image_size; x++) {
-      for (int y = 0; y < test_image_size; y++)
-          if ((x + y) % 2 == 0)
-              test_image.setPixel(x, y, qRgb(255, 0, 0));
-          else
-              test_image.setPixel(x, y, qRgb(0, 255, 0));
-      test_image.setPixel(x, 2, qRgb(0, 0, 255));
-  }
-  test_texture_id = widget->bindTexture(test_image);
+//  int test_image_size = 3;
+//  QImage test_image(test_image_size, test_image_size, QImage::Format_RGB888);
+//  for (int x = 0; x < test_image_size; x++) {
+//      for (int y = 0; y < test_image_size; y++)
+//          if ((x + y) % 2 == 0)
+//              test_image.setPixel(x, y, qRgb(255, 0, 0));
+//          else
+//              test_image.setPixel(x, y, qRgb(0, 255, 0));
+//      test_image.setPixel(x, 2, qRgb(0, 0, 255));
+//  }
+//  test_texture_id = widget->bindTexture(test_image);
 
   texture_ids.resize(num_layers + 1);
   for (int layer_index = 0; layer_index < num_layers + 1; layer_index++)
@@ -688,81 +757,80 @@ void DepthMapRenderer::InitGL() {
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
 
-  CreateVBOs();
-
+//  CreateVBOs(program);
 }
   
-void DepthMapRenderer::InitDepthMeshes(const FileIO& file_io, const int scene_index) {
-  /*
-  ifstream ifstr;
-  ifstr.open(filename.c_str());
+//void DepthMapRenderer::InitDepthMeshes(const FileIO& file_io, const int scene_index) {
+//  /*
+//  ifstream ifstr;
+//  ifstr.open(filename.c_str());
   
-  string header;
-  double min_depth, max_depth;
-  ifstr >> header >> image_width >> image_height >> min_depth >> max_depth;
+//  string header;
+//  double min_depth, max_depth;
+//  ifstr >> header >> image_width >> image_height >> min_depth >> max_depth;
 
-  vector<double> depths;
-  depths.reserve(image_width * image_height);
-  for (int y = 0; y < image_height; ++y) {
-    for (int x = 0; x < image_width; ++x) {
-      double distance;
-      ifstr >> distance;
-      depths.push_back(distance);
-    }
-  }
-  ifstr.close();
-  */
+//  vector<double> depths;
+//  depths.reserve(image_width * image_height);
+//  for (int y = 0; y < image_height; ++y) {
+//    for (int x = 0; x < image_width; ++x) {
+//      double distance;
+//      ifstr >> distance;
+//      depths.push_back(distance);
+//    }
+//  }
+//  ifstr.close();
+//  */
 
-  assert(num_layers > 0);
-  image_width  = depth_maps[0].DepthWidth() + 1;
-  image_height = depth_maps[0].DepthHeight() + 1;
+//  assert(num_layers > 0);
+//  image_width  = depth_maps[0].DepthWidth() + 1;
+//  image_height = depth_maps[0].DepthHeight() + 1;
 
-  depth_meshes.resize(num_layers);
-  depth_meshes_data.resize(num_layers * image_width * image_height);
+//  depth_meshes.resize(num_layers);
+//  depth_meshes_data.resize(num_layers * image_width * image_height);
 
-  for (int layer_index = 0; layer_index < num_layers; layer_index++) {
-      const Panorama &depth_map = depth_maps[layer_index];
-      vector<vector<double> > depth_mesh(image_width * image_height, vector<double>(3));
-//      double average_depth = depth_map.GetAverageDistance();
-      for (int y = 0; y < image_height; ++y) {
-        for (int x = 0; x < image_width; ++x) {
-          const Vector2d pixel = depth_map.DepthToRGB(Vector2d(x - 0.5, y - 0.5));
-//          cout << pixel[0] << '\t' << pixel[1] << endl;
-          Vector3d vertex = depth_map.Unproject(pixel, depth_map.GetDepth(Vector2d(x - 0.5, y - 0.5)));
-          for (int c = 0; c < 3; c++)
-              depth_mesh[y * image_width + x][c] = vertex[c];
-//          depth_mesh[y * image_width + x](2) += average_depth;
-        }
-      }
-      depth_meshes[layer_index] = depth_mesh;
+//  for (int layer_index = 0; layer_index < num_layers; layer_index++) {
+//      const Panorama &depth_map = depth_maps[layer_index];
+//      vector<vector<double> > depth_mesh(image_width * image_height, vector<double>(3));
+////      double average_depth = depth_map.GetAverageDistance();
+//      for (int y = 0; y < image_height; ++y) {
+//        for (int x = 0; x < image_width; ++x) {
+//          const Vector2d pixel = depth_map.DepthToRGB(Vector2d(x - 0.5, y - 0.5));
+////          cout << pixel[0] << '\t' << pixel[1] << endl;
+//          Vector3d vertex = depth_map.Unproject(pixel, depth_map.GetDepth(Vector2d(x - 0.5, y - 0.5)));
+//          for (int c = 0; c < 3; c++)
+//              depth_mesh[y * image_width + x][c] = vertex[c];
+////          depth_mesh[y * image_width + x](2) += average_depth;
+//        }
+//      }
+//      depth_meshes[layer_index] = depth_mesh;
 
-      for (int i = 0; i < image_width * image_height; i++) {
-          depth_meshes_data[layer_index * image_width * image_height + i] = new GLdouble[3];
-          for (int c = 0; c < 3; c++)
-              depth_meshes_data[layer_index * image_width * image_height + i][c] = depth_mesh[i][c];
-      }
-  }
+//      for (int i = 0; i < image_width * image_height; i++) {
+//          depth_meshes_data[layer_index * image_width * image_height + i] = new GLdouble[3];
+//          for (int c = 0; c < 3; c++)
+//              depth_meshes_data[layer_index * image_width * image_height + i][c] = depth_mesh[i][c];
+//      }
+//  }
 
 
-  QImage &ori_image = rgb_images[num_layers];
-  double scale = max(ori_image.width(), ori_image.height());
-  ifstream in_str(file_io.GetOriPointCloud(scene_index).c_str());
-  int ori_num_pixels;
-  in_str >> ori_num_pixels;
-  ori_depth_mesh.resize(ori_image.width() * ori_image.height());
-  for (int y = 0; y < ori_image.height(); ++y) {
-      for (int x = 0; x < ori_image.width(); ++x) {
-          Vector3d ori_point;
-          in_str >> ori_point[0] >> ori_point[1] >> ori_point[2];
-//          cout << ori_point[0] << '\t' << ori_point[1] << '\t' << ori_point[2] << endl;
-          ori_point[1] *= -1;
-          ori_point[2] *= -1;
-          ori_depth_mesh[y * ori_image.width() + x] = ori_point / scale;
-          //          depth_mesh[y * image_width + x](2) += average_depth;
-      }
-   }
-  in_str.close();
-}
+//  QImage &ori_image = rgb_images[num_layers];
+//  double scale = max(ori_image.width(), ori_image.height());
+//  ifstream in_str(file_io.GetOriPointCloud(scene_index).c_str());
+//  int ori_num_pixels;
+//  in_str >> ori_num_pixels;
+//  ori_depth_mesh.resize(ori_image.width() * ori_image.height());
+//  for (int y = 0; y < ori_image.height(); ++y) {
+//      for (int x = 0; x < ori_image.width(); ++x) {
+//          Vector3d ori_point;
+//          in_str >> ori_point[0] >> ori_point[1] >> ori_point[2];
+////          cout << ori_point[0] << '\t' << ori_point[1] << '\t' << ori_point[2] << endl;
+//          ori_point[1] *= -1;
+//          ori_point[2] *= -1;
+//          ori_depth_mesh[y * ori_image.width() + x] = ori_point / scale;
+//          //          depth_mesh[y * image_width + x](2) += average_depth;
+//      }
+//   }
+//  in_str.close();
+//}
 
 void DepthMapRenderer::increaseViewScale()
 {
@@ -804,289 +872,299 @@ void DepthMapRenderer::rotateByZ(const double delta_angle_z)
     rotate_z += delta_angle_z;
 }
 
+void DepthMapRenderer::returnToOriginalViewPoint()
+{
+    translate_x = 0;
+    translate_y = 0;
+    translate_z = 0;
+    rotate_x = 0;
+    rotate_y = 0;
+    rotate_z = 0;
+}
+
 void DepthMapRenderer::setRenderingMode(const char rendering_mode_tmp)
 {
     rendering_mode = rendering_mode_tmp;
 }
 
-void DepthMapRenderer::TriangulateBoundaries()
-{
-    layer_surface_triangles_2D.resize(num_layers);
-    const int ori_image_width = image_width - 1;
-    const int ori_image_height = image_height - 1;
-    for (int layer_index = 0; layer_index < num_layers; layer_index++) {
-//        cout << "layer index: " << layer_index << endl;
-        map<int, vector<int> > surface_boundary_indices;
-//        vector<Vector3d> depth_mesh = depth_meshes[layer_index];
-        vector<int> surface_ids = depth_maps[layer_index].GetSurfaceIds();
+//void DepthMapRenderer::TriangulateBoundaries()
+//{
+//    layer_surface_triangles_2D.resize(num_layers);
+//    const int ori_image_width = image_width - 1;
+//    const int ori_image_height = image_height - 1;
+//    for (int layer_index = 0; layer_index < num_layers; layer_index++) {
+////        cout << "layer index: " << layer_index << endl;
+//        map<int, vector<int> > surface_boundary_indices;
+////        vector<Vector3d> depth_mesh = depth_meshes[layer_index];
+//        vector<int> surface_ids = depth_maps[layer_index].GetSurfaceIds();
 
-        map<int, vector<int> > surface_points;
-        for (int y = 0; y < image_height; ++y) {
-          for (int x = 0; x < image_width; ++x) {
-              double ori_x = x - 0.5;
-              double ori_y = y - 0.5;
+//        map<int, vector<int> > surface_points;
+//        for (int y = 0; y < image_height; ++y) {
+//          for (int x = 0; x < image_width; ++x) {
+//              double ori_x = x - 0.5;
+//              double ori_y = y - 0.5;
 
-              int index_1 = (ori_x >= 0 && ori_y >= 0) ? static_cast<int>(ori_y) * ori_image_width + static_cast<int>(ori_x) : -1;
-              int index_2 = (ori_x < ori_image_width - 1 && ori_y >= 0) ? static_cast<int>(ori_y) * ori_image_width + static_cast<int>(ori_x + 1) : -1;
-              int index_3 = (ori_x >= 0 && ori_y < ori_image_height - 1) ? static_cast<int>(ori_y + 1) * ori_image_width + static_cast<int>(ori_x) : -1;
-              int index_4 = (ori_x < ori_image_width - 1 && ori_y < ori_image_height - 1) ? static_cast<int>(ori_y + 1) * ori_image_width + static_cast<int>(ori_x + 1) : -1;
+//              int index_1 = (ori_x >= 0 && ori_y >= 0) ? static_cast<int>(ori_y) * ori_image_width + static_cast<int>(ori_x) : -1;
+//              int index_2 = (ori_x < ori_image_width - 1 && ori_y >= 0) ? static_cast<int>(ori_y) * ori_image_width + static_cast<int>(ori_x + 1) : -1;
+//              int index_3 = (ori_x >= 0 && ori_y < ori_image_height - 1) ? static_cast<int>(ori_y + 1) * ori_image_width + static_cast<int>(ori_x) : -1;
+//              int index_4 = (ori_x < ori_image_width - 1 && ori_y < ori_image_height - 1) ? static_cast<int>(ori_y + 1) * ori_image_width + static_cast<int>(ori_x + 1) : -1;
 
-              set<int> neighbor_surfaces;
-              neighbor_surfaces.insert(index_1 != -1 ? surface_ids[index_1] : -1);
-              neighbor_surfaces.insert(index_2 != -1 ? surface_ids[index_2] : -1);
-              neighbor_surfaces.insert(index_3 != -1 ? surface_ids[index_3] : -1);
-              neighbor_surfaces.insert(index_4 != -1 ? surface_ids[index_4] : -1);
-              if (neighbor_surfaces.size() > 1)
-                  for (set<int>::const_iterator surface_it = neighbor_surfaces.begin(); surface_it != neighbor_surfaces.end(); surface_it++)
-                      if (*surface_it != -1)
-                          surface_boundary_indices[*surface_it].push_back(y * image_width + x);
-              for (set<int>::const_iterator surface_it = neighbor_surfaces.begin(); surface_it != neighbor_surfaces.end(); surface_it++)
-                  if (*surface_it != -1)
-                      surface_points[*surface_it].push_back(y * image_width + x);
-          }
-        }
-        for (map<int, vector<int> >::const_iterator surface_it = surface_points.begin(); surface_it != surface_points.end(); surface_it++) {
-            layer_surface_triangles_2D[layer_index][surface_it->first] = TriangulateSegmentBoundary(surface_it->second, image_width, image_height, layer_index, surface_it->first);
-        }
-
-//        for (map<int, vector<int> >::const_iterator surface_it = surface_boundary_indices.begin(); surface_it != surface_boundary_indices.end(); surface_it++) {
-//            cout << surface_it->first << endl;
-//            layer_surface_triangles_2D[layer_index][surface_it->first] = TriangulateSegmentBoundary(surface_it->second, image_width, image_height);
+//              set<int> neighbor_surfaces;
+//              neighbor_surfaces.insert(index_1 != -1 ? surface_ids[index_1] : -1);
+//              neighbor_surfaces.insert(index_2 != -1 ? surface_ids[index_2] : -1);
+//              neighbor_surfaces.insert(index_3 != -1 ? surface_ids[index_3] : -1);
+//              neighbor_surfaces.insert(index_4 != -1 ? surface_ids[index_4] : -1);
+//              if (neighbor_surfaces.size() > 1)
+//                  for (set<int>::const_iterator surface_it = neighbor_surfaces.begin(); surface_it != neighbor_surfaces.end(); surface_it++)
+//                      if (*surface_it != -1)
+//                          surface_boundary_indices[*surface_it].push_back(y * image_width + x);
+//              for (set<int>::const_iterator surface_it = neighbor_surfaces.begin(); surface_it != neighbor_surfaces.end(); surface_it++)
+//                  if (*surface_it != -1)
+//                      surface_points[*surface_it].push_back(y * image_width + x);
+//          }
 //        }
-    }
-}
+//        for (map<int, vector<int> >::const_iterator surface_it = surface_points.begin(); surface_it != surface_points.end(); surface_it++) {
+//            layer_surface_triangles_2D[layer_index][surface_it->first] = TriangulateSegmentBoundary(surface_it->second, image_width, image_height, layer_index, surface_it->first);
+//        }
 
-void DepthMapRenderer::GetBoundaryIndices()
-{
-    layer_surface_boundary_indices.resize(num_layers);
-    const int ori_image_width = image_width - 1;
-    const int ori_image_height = image_height - 1;
-    for (int layer_index = 0; layer_index < num_layers; layer_index++) {
-        map<int, vector<int> > surface_boundary_indices;
-//        vector<Vector3d> depth_mesh = depth_meshes[layer_index];
-        vector<int> surface_ids = depth_maps[layer_index].GetSurfaceIds();
+////        for (map<int, vector<int> >::const_iterator surface_it = surface_boundary_indices.begin(); surface_it != surface_boundary_indices.end(); surface_it++) {
+////            cout << surface_it->first << endl;
+////            layer_surface_triangles_2D[layer_index][surface_it->first] = TriangulateSegmentBoundary(surface_it->second, image_width, image_height);
+////        }
+//    }
+//}
 
-        for (int y = 0; y < image_height; ++y) {
-          for (int x = 0; x < image_width; ++x) {
-              double ori_x = x - 0.5;
-              double ori_y = y - 0.5;
+//void DepthMapRenderer::GetBoundaryIndices()
+//{
+//    layer_surface_boundary_indices.resize(num_layers);
+//    const int ori_image_width = image_width - 1;
+//    const int ori_image_height = image_height - 1;
+//    for (int layer_index = 0; layer_index < num_layers; layer_index++) {
+//        map<int, vector<int> > surface_boundary_indices;
+////        vector<Vector3d> depth_mesh = depth_meshes[layer_index];
+//        vector<int> surface_ids = depth_maps[layer_index].GetSurfaceIds();
 
-              int index_1 = (ori_x >= 0 && ori_y >= 0) ? static_cast<int>(ori_y) * ori_image_width + static_cast<int>(ori_x) : -1;
-              int index_2 = (ori_x < ori_image_width - 1 && ori_y >= 0) ? static_cast<int>(ori_y) * ori_image_width + static_cast<int>(ori_x + 1) : -1;
-              int index_3 = (ori_x >= 0 && ori_y < ori_image_height - 1) ? static_cast<int>(ori_y + 1) * ori_image_width + static_cast<int>(ori_x) : -1;
-              int index_4 = (ori_x < ori_image_width - 1 && ori_y < ori_image_height - 1) ? static_cast<int>(ori_y + 1) * ori_image_width + static_cast<int>(ori_x + 1) : -1;
+//        for (int y = 0; y < image_height; ++y) {
+//          for (int x = 0; x < image_width; ++x) {
+//              double ori_x = x - 0.5;
+//              double ori_y = y - 0.5;
 
-              set<int> neighbor_surfaces;
-              neighbor_surfaces.insert(index_1 != -1 ? surface_ids[index_1] : -1);
-              neighbor_surfaces.insert(index_2 != -1 ? surface_ids[index_2] : -1);
-              neighbor_surfaces.insert(index_3 != -1 ? surface_ids[index_3] : -1);
-              neighbor_surfaces.insert(index_4 != -1 ? surface_ids[index_4] : -1);
-              if (neighbor_surfaces.size() > 1)
-                  for (set<int>::const_iterator surface_it = neighbor_surfaces.begin(); surface_it != neighbor_surfaces.end(); surface_it++)
-                      if (*surface_it != -1)
-                          surface_boundary_indices[*surface_it].push_back(y * image_width + x);
-          }
-        }
+//              int index_1 = (ori_x >= 0 && ori_y >= 0) ? static_cast<int>(ori_y) * ori_image_width + static_cast<int>(ori_x) : -1;
+//              int index_2 = (ori_x < ori_image_width - 1 && ori_y >= 0) ? static_cast<int>(ori_y) * ori_image_width + static_cast<int>(ori_x + 1) : -1;
+//              int index_3 = (ori_x >= 0 && ori_y < ori_image_height - 1) ? static_cast<int>(ori_y + 1) * ori_image_width + static_cast<int>(ori_x) : -1;
+//              int index_4 = (ori_x < ori_image_width - 1 && ori_y < ori_image_height - 1) ? static_cast<int>(ori_y + 1) * ori_image_width + static_cast<int>(ori_x + 1) : -1;
+
+//              set<int> neighbor_surfaces;
+//              neighbor_surfaces.insert(index_1 != -1 ? surface_ids[index_1] : -1);
+//              neighbor_surfaces.insert(index_2 != -1 ? surface_ids[index_2] : -1);
+//              neighbor_surfaces.insert(index_3 != -1 ? surface_ids[index_3] : -1);
+//              neighbor_surfaces.insert(index_4 != -1 ? surface_ids[index_4] : -1);
+//              if (neighbor_surfaces.size() > 1)
+//                  for (set<int>::const_iterator surface_it = neighbor_surfaces.begin(); surface_it != neighbor_surfaces.end(); surface_it++)
+//                      if (*surface_it != -1)
+//                          surface_boundary_indices[*surface_it].push_back(y * image_width + x);
+//          }
+//        }
         
-        map<int, vector<int> > surface_ordered_boundary_indices;        
-        for (map<int, vector<int> >::const_iterator surface_it = surface_boundary_indices.begin(); surface_it != surface_boundary_indices.end(); surface_it++) {
-            QString image_filename = QString("boundary_") + QString::number(layer_index) + "_" + QString::number(surface_it->first) + ".bmp";
+//        map<int, vector<int> > surface_ordered_boundary_indices;
+//        for (map<int, vector<int> >::const_iterator surface_it = surface_boundary_indices.begin(); surface_it != surface_boundary_indices.end(); surface_it++) {
+//            QString image_filename = QString("boundary_") + QString::number(layer_index) + "_" + QString::number(surface_it->first) + ".bmp";
 
-            vector<int> ordered_boundary_indices;
-            vector<vector<int > > boundary_mask(image_width, vector<int>(image_height, 0));
+//            vector<int> ordered_boundary_indices;
+//            vector<vector<int > > boundary_mask(image_width, vector<int>(image_height, 0));
             
-            int start_x = image_width, start_y = image_height;
-            for (vector<int>::const_iterator index_it = surface_it->second.begin(); index_it != surface_it->second.end(); index_it++) {
-                int x = *index_it % image_width;
-                int y = *index_it / image_width;
-                boundary_mask[x][y] = 1;
-                if (y < start_y) {
-                    start_x = x;
-                    start_y = y;
-                } else if (y == start_y && x < start_x) {
-                    start_x = x;
-                }
-            }
-//            vector<bool> mask(image_width * image_height);
-//            for (int y = 0; y < image_height; y++)
-//                for (int x = 0; x < image_width; x++)
-//                    if (boundary_mask[x][y] == 1)
-//                        mask[y * image_width + x] = true;
-//            DrawMask(image_filename, mask, image_width, image_height);
+//            int start_x = image_width, start_y = image_height;
+//            for (vector<int>::const_iterator index_it = surface_it->second.begin(); index_it != surface_it->second.end(); index_it++) {
+//                int x = *index_it % image_width;
+//                int y = *index_it / image_width;
+//                boundary_mask[x][y] = 1;
+//                if (y < start_y) {
+//                    start_x = x;
+//                    start_y = y;
+//                } else if (y == start_y && x < start_x) {
+//                    start_x = x;
+//                }
+//            }
+////            vector<bool> mask(image_width * image_height);
+////            for (int y = 0; y < image_height; y++)
+////                for (int x = 0; x < image_width; x++)
+////                    if (boundary_mask[x][y] == 1)
+////                        mask[y * image_width + x] = true;
+////            DrawMask(image_filename, mask, image_width, image_height);
 
-            int start_index = start_y * image_width + start_x;
-            ordered_boundary_indices.push_back(start_index);
-            while (true) {
-                if (ordered_boundary_indices.size() == 0)
-                    break;
-                int index = ordered_boundary_indices.back();
-//                int previous_index_offset = 0;
-//                if (ordered_boundary_indices.size() > 1)
-//                    previous_index_offset = index - ordered_boundary_indices[ordered_boundary_indices.size() - 2];
-                int x = index % image_width;
-                int y = index / image_width;
-                boundary_mask[x][y] = -1;
+//            int start_index = start_y * image_width + start_x;
+//            ordered_boundary_indices.push_back(start_index);
+//            while (true) {
+//                if (ordered_boundary_indices.size() == 0)
+//                    break;
+//                int index = ordered_boundary_indices.back();
+////                int previous_index_offset = 0;
+////                if (ordered_boundary_indices.size() > 1)
+////                    previous_index_offset = index - ordered_boundary_indices[ordered_boundary_indices.size() - 2];
+//                int x = index % image_width;
+//                int y = index / image_width;
+//                boundary_mask[x][y] = -1;
 
-                if (x < image_width - 1 && boundary_mask[x + 1][y] == 1)
-                    ordered_boundary_indices.push_back(index + 1);
-                else if (x < image_width - 1 && y < image_height - 1 && boundary_mask[x + 1][y + 1] == 1)
-                    ordered_boundary_indices.push_back(index + 1 + image_width);
-                else if (y < image_height - 1 && boundary_mask[x][y + 1] == 1)
-                    ordered_boundary_indices.push_back(index + image_width);
-                else if (x > 0  && y < image_height - 1 && boundary_mask[x - 1][y + 1] == 1)
-                    ordered_boundary_indices.push_back(index - 1 + image_width);
-                else if (x > 0 && boundary_mask[x - 1][y] == 1)
-                    ordered_boundary_indices.push_back(index - 1);
-                else if (x > 0 && y > 0 && boundary_mask[x - 1][y - 1] == 1)
-                    ordered_boundary_indices.push_back(index - 1 - image_width);
-                else if (y > 0 && boundary_mask[x][y - 1] == 1)
-                    ordered_boundary_indices.push_back(index - image_width);
-                else if (x < image_width - 1 && y > 0 && boundary_mask[x + 1][y - 1] == 1)
-                    ordered_boundary_indices.push_back(index + 1 - image_width);
-                else {
-                    if (abs(x - start_x) <= 1 && (y - start_y) <= 1)
-                        break;
-                    else
-                        ordered_boundary_indices.pop_back();
-                }
-            }
-            if (ordered_boundary_indices.size() == 0)
-                continue;
-//            cout << surface_it->first << '\t' << ordered_boundary_indices.size() << endl;
-            while (false) {
-                int start_index = -1;
-                int nearest_visited_neighbor_pixel = -1;
-                for (int y = 0; y < image_height; ++y) {
-                  for (int x = 0; x < image_width; ++x) {
-                      if (boundary_mask[x][y] != 1)
-                          continue;
-                      int pixel = y * image_width + x;
-                      vector<int> neighbor_pixels;
-                      if (x > 0)
-                          neighbor_pixels.push_back(pixel - 1);
-                      if (x < image_width - 1)
-                          neighbor_pixels.push_back(pixel + 1);
-                      if (y > 0)
-                          neighbor_pixels.push_back(pixel - image_width);
-                      if (y < image_height - 1)
-                          neighbor_pixels.push_back(pixel + image_width);
-                      if (x > 0 && y > 0)
-                          neighbor_pixels.push_back(pixel - 1 - image_width);
-                      if (x < image_width - 1 && y > 0)
-                          neighbor_pixels.push_back(pixel + 1 - image_width);
-                      if (x > 0 && y < image_height - 1)
-                          neighbor_pixels.push_back(pixel - 1 + image_width);
-                      if (x < image_width - 1 && y < image_height - 1)
-                          neighbor_pixels.push_back(pixel + 1 + image_width);
-                      for (int i = 0; i < neighbor_pixels.size(); i++) {
-                          int neighbor_pixel = neighbor_pixels[i];
-                          if (boundary_mask[neighbor_pixel % image_width][neighbor_pixel / image_width] == -1) {
-                              start_index = y * image_width + x;
-                              nearest_visited_neighbor_pixel = neighbor_pixel;
-                          }
-                      }
-                      if (start_index != -1)
-                          break;
-                  }
-                  if (start_index != -1)
-                      break;
-                }
+//                if (x < image_width - 1 && boundary_mask[x + 1][y] == 1)
+//                    ordered_boundary_indices.push_back(index + 1);
+//                else if (x < image_width - 1 && y < image_height - 1 && boundary_mask[x + 1][y + 1] == 1)
+//                    ordered_boundary_indices.push_back(index + 1 + image_width);
+//                else if (y < image_height - 1 && boundary_mask[x][y + 1] == 1)
+//                    ordered_boundary_indices.push_back(index + image_width);
+//                else if (x > 0  && y < image_height - 1 && boundary_mask[x - 1][y + 1] == 1)
+//                    ordered_boundary_indices.push_back(index - 1 + image_width);
+//                else if (x > 0 && boundary_mask[x - 1][y] == 1)
+//                    ordered_boundary_indices.push_back(index - 1);
+//                else if (x > 0 && y > 0 && boundary_mask[x - 1][y - 1] == 1)
+//                    ordered_boundary_indices.push_back(index - 1 - image_width);
+//                else if (y > 0 && boundary_mask[x][y - 1] == 1)
+//                    ordered_boundary_indices.push_back(index - image_width);
+//                else if (x < image_width - 1 && y > 0 && boundary_mask[x + 1][y - 1] == 1)
+//                    ordered_boundary_indices.push_back(index + 1 - image_width);
+//                else {
+//                    if (abs(x - start_x) <= 1 && (y - start_y) <= 1)
+//                        break;
+//                    else
+//                        ordered_boundary_indices.pop_back();
+//                }
+//            }
+//            if (ordered_boundary_indices.size() == 0)
+//                continue;
+////            cout << surface_it->first << '\t' << ordered_boundary_indices.size() << endl;
+//            while (false) {
+//                int start_index = -1;
+//                int nearest_visited_neighbor_pixel = -1;
+//                for (int y = 0; y < image_height; ++y) {
+//                  for (int x = 0; x < image_width; ++x) {
+//                      if (boundary_mask[x][y] != 1)
+//                          continue;
+//                      int pixel = y * image_width + x;
+//                      vector<int> neighbor_pixels;
+//                      if (x > 0)
+//                          neighbor_pixels.push_back(pixel - 1);
+//                      if (x < image_width - 1)
+//                          neighbor_pixels.push_back(pixel + 1);
+//                      if (y > 0)
+//                          neighbor_pixels.push_back(pixel - image_width);
+//                      if (y < image_height - 1)
+//                          neighbor_pixels.push_back(pixel + image_width);
+//                      if (x > 0 && y > 0)
+//                          neighbor_pixels.push_back(pixel - 1 - image_width);
+//                      if (x < image_width - 1 && y > 0)
+//                          neighbor_pixels.push_back(pixel + 1 - image_width);
+//                      if (x > 0 && y < image_height - 1)
+//                          neighbor_pixels.push_back(pixel - 1 + image_width);
+//                      if (x < image_width - 1 && y < image_height - 1)
+//                          neighbor_pixels.push_back(pixel + 1 + image_width);
+//                      for (int i = 0; i < neighbor_pixels.size(); i++) {
+//                          int neighbor_pixel = neighbor_pixels[i];
+//                          if (boundary_mask[neighbor_pixel % image_width][neighbor_pixel / image_width] == -1) {
+//                              start_index = y * image_width + x;
+//                              nearest_visited_neighbor_pixel = neighbor_pixel;
+//                          }
+//                      }
+//                      if (start_index != -1)
+//                          break;
+//                  }
+//                  if (start_index != -1)
+//                      break;
+//                }
 
-                if (start_index == -1)
-                      break;
+//                if (start_index == -1)
+//                      break;
 
-                vector<int> additional_boundary_indices;
-                additional_boundary_indices.push_back(start_index);
-                while (true) {
-                    if (additional_boundary_indices.size() == 0)
-                        break;
-                    int index = additional_boundary_indices.back();
-                    int x = index % image_width;
-                    int y = index / image_width;
-                    boundary_mask[x][y] = -1;
+//                vector<int> additional_boundary_indices;
+//                additional_boundary_indices.push_back(start_index);
+//                while (true) {
+//                    if (additional_boundary_indices.size() == 0)
+//                        break;
+//                    int index = additional_boundary_indices.back();
+//                    int x = index % image_width;
+//                    int y = index / image_width;
+//                    boundary_mask[x][y] = -1;
 
-                    if (x < image_width - 1 && boundary_mask[x + 1][y] == 1)
-                        additional_boundary_indices.push_back(index + 1);
-                    else if (x < image_width - 1 && y < image_height - 1 && boundary_mask[x + 1][y + 1] == 1)
-                        additional_boundary_indices.push_back(index + 1 + image_width);
-                    else if (y < image_height - 1 && boundary_mask[x][y + 1] == 1)
-                        additional_boundary_indices.push_back(index + image_width);
-                    else if (x > 0  && y < image_height - 1 && boundary_mask[x - 1][y + 1] == 1)
-                        additional_boundary_indices.push_back(index - 1 + image_width);
-                    else if (x > 0 && boundary_mask[x - 1][y] == 1)
-                        additional_boundary_indices.push_back(index - 1);
-                    else if (x > 0 && y > 0 && boundary_mask[x - 1][y - 1] == 1)
-                        additional_boundary_indices.push_back(index - 1 - image_width);
-                    else if (y > 0 && boundary_mask[x][y - 1] == 1)
-                        additional_boundary_indices.push_back(index - image_width);
-                    else if (x < image_width - 1 && y > 0 && boundary_mask[x + 1][y - 1] == 1)
-                        additional_boundary_indices.push_back(index + 1 - image_width);
-                    else {
-                        if (abs(x - start_index % image_width) <= 1 && (y - start_index / image_width) <= 1)
-                            break;
-                        else
-                            additional_boundary_indices.pop_back();
-                    }
-                }
-                if (additional_boundary_indices.size() >= 2) {
-                    vector<int>::iterator insertion_it;
-                    for (vector<int>::iterator index_it = ordered_boundary_indices.begin(); index_it != ordered_boundary_indices.end(); index_it++) {
-                        if (*index_it == nearest_visited_neighbor_pixel) {
-                            insertion_it = index_it;
-                            break;
-                        }
-                    }
-                    ordered_boundary_indices.insert(insertion_it, additional_boundary_indices.begin(), additional_boundary_indices.end());
-                }
-            }
-//            cout << surface_it->first << '\t' << ordered_boundary_indices.size() << endl;
+//                    if (x < image_width - 1 && boundary_mask[x + 1][y] == 1)
+//                        additional_boundary_indices.push_back(index + 1);
+//                    else if (x < image_width - 1 && y < image_height - 1 && boundary_mask[x + 1][y + 1] == 1)
+//                        additional_boundary_indices.push_back(index + 1 + image_width);
+//                    else if (y < image_height - 1 && boundary_mask[x][y + 1] == 1)
+//                        additional_boundary_indices.push_back(index + image_width);
+//                    else if (x > 0  && y < image_height - 1 && boundary_mask[x - 1][y + 1] == 1)
+//                        additional_boundary_indices.push_back(index - 1 + image_width);
+//                    else if (x > 0 && boundary_mask[x - 1][y] == 1)
+//                        additional_boundary_indices.push_back(index - 1);
+//                    else if (x > 0 && y > 0 && boundary_mask[x - 1][y - 1] == 1)
+//                        additional_boundary_indices.push_back(index - 1 - image_width);
+//                    else if (y > 0 && boundary_mask[x][y - 1] == 1)
+//                        additional_boundary_indices.push_back(index - image_width);
+//                    else if (x < image_width - 1 && y > 0 && boundary_mask[x + 1][y - 1] == 1)
+//                        additional_boundary_indices.push_back(index + 1 - image_width);
+//                    else {
+//                        if (abs(x - start_index % image_width) <= 1 && (y - start_index / image_width) <= 1)
+//                            break;
+//                        else
+//                            additional_boundary_indices.pop_back();
+//                    }
+//                }
+//                if (additional_boundary_indices.size() >= 2) {
+//                    vector<int>::iterator insertion_it;
+//                    for (vector<int>::iterator index_it = ordered_boundary_indices.begin(); index_it != ordered_boundary_indices.end(); index_it++) {
+//                        if (*index_it == nearest_visited_neighbor_pixel) {
+//                            insertion_it = index_it;
+//                            break;
+//                        }
+//                    }
+//                    ordered_boundary_indices.insert(insertion_it, additional_boundary_indices.begin(), additional_boundary_indices.end());
+//                }
+//            }
+////            cout << surface_it->first << '\t' << ordered_boundary_indices.size() << endl;
 
-//            DrawIndices(image_filename, ordered_boundary_indices, image_width, image_height);
+////            DrawIndices(image_filename, ordered_boundary_indices, image_width, image_height);
 
-            vector<int> reduced_ordered_boundary_indices;
-            reduced_ordered_boundary_indices.push_back(ordered_boundary_indices.front());
-            for (int i = 1; i < ordered_boundary_indices.size(); i++) {
-                int previous_offset = ordered_boundary_indices[i] - ordered_boundary_indices[i - 1];
-                int next_offset = i < ordered_boundary_indices.size() - 1 ? ordered_boundary_indices[i + 1] - ordered_boundary_indices[i] : ordered_boundary_indices[0] - ordered_boundary_indices[i];
-                if (previous_offset != next_offset)
-                    reduced_ordered_boundary_indices.push_back(ordered_boundary_indices[i]);
-            }
-//            DrawIndices(image_filename, reduced_ordered_boundary_indices, image_width, image_height);
+//            vector<int> reduced_ordered_boundary_indices;
+//            reduced_ordered_boundary_indices.push_back(ordered_boundary_indices.front());
+//            for (int i = 1; i < ordered_boundary_indices.size(); i++) {
+//                int previous_offset = ordered_boundary_indices[i] - ordered_boundary_indices[i - 1];
+//                int next_offset = i < ordered_boundary_indices.size() - 1 ? ordered_boundary_indices[i + 1] - ordered_boundary_indices[i] : ordered_boundary_indices[0] - ordered_boundary_indices[i];
+//                if (previous_offset != next_offset)
+//                    reduced_ordered_boundary_indices.push_back(ordered_boundary_indices[i]);
+//            }
+////            DrawIndices(image_filename, reduced_ordered_boundary_indices, image_width, image_height);
 
-//            cout << surface_it->first << '\t' << reduced_ordered_boundary_indices.size() << endl;
-            surface_ordered_boundary_indices[surface_it->first] = reduced_ordered_boundary_indices;
-        }
+////            cout << surface_it->first << '\t' << reduced_ordered_boundary_indices.size() << endl;
+//            surface_ordered_boundary_indices[surface_it->first] = reduced_ordered_boundary_indices;
+//        }
 
-        layer_surface_boundary_indices[layer_index] = surface_ordered_boundary_indices;
-    }
-}
+//        layer_surface_boundary_indices[layer_index] = surface_ordered_boundary_indices;
+//    }
+//}
 
-void DepthMapRenderer::RectifyDepthMeshes()
-{
-    for (int layer_index = 0; layer_index < num_layers; layer_index++) {
-        vector<vector<double> > &depth_mesh = depth_meshes[layer_index];
-        map<int, vector<int> > surface_boundary_indices = layer_surface_boundary_indices[layer_index];
-        for (map<int, vector<int> >::const_iterator surface_it = surface_boundary_indices.begin(); surface_it != surface_boundary_indices.end(); surface_it++) {
-            vector<double> boundary_points;
-            for (vector<int>::const_iterator index_it = surface_it->second.begin(); index_it != surface_it->second.end(); index_it++) {
-                vector<double> &vertex = depth_mesh[*index_it];
-                boundary_points.insert(boundary_points.end(), vertex.begin(), vertex.end());
-            }
-            if (boundary_points.size() <= 9)
-                continue;
-            vector<double> plane = FitPlane(boundary_points);
-            for (vector<int>::const_iterator index_it = surface_it->second.begin(); index_it != surface_it->second.end(); index_it++) {
-                vector<double> &vertex = depth_mesh[*index_it];
-                vector<double> new_vertex(3);
-                double distance = vertex[0] * plane[0] + vertex[1] * plane[1] + vertex[2] * plane[2] - plane[3];
-                for (int c = 0; c < 3; c++)
-                    new_vertex[c] = vertex[c] - distance * plane[c];
-                depth_mesh[*index_it] = new_vertex;
-            }
-        }
-        depth_meshes[layer_index] = depth_mesh;
-    }
-}
+//void DepthMapRenderer::RectifyDepthMeshes()
+//{
+//    for (int layer_index = 0; layer_index < num_layers; layer_index++) {
+//        vector<vector<double> > &depth_mesh = depth_meshes[layer_index];
+//        map<int, vector<int> > surface_boundary_indices = layer_surface_boundary_indices[layer_index];
+//        for (map<int, vector<int> >::const_iterator surface_it = surface_boundary_indices.begin(); surface_it != surface_boundary_indices.end(); surface_it++) {
+//            vector<double> boundary_points;
+//            for (vector<int>::const_iterator index_it = surface_it->second.begin(); index_it != surface_it->second.end(); index_it++) {
+//                vector<double> &vertex = depth_mesh[*index_it];
+//                boundary_points.insert(boundary_points.end(), vertex.begin(), vertex.end());
+//            }
+//            if (boundary_points.size() <= 9)
+//                continue;
+//            vector<double> plane = FitPlane(boundary_points);
+//            for (vector<int>::const_iterator index_it = surface_it->second.begin(); index_it != surface_it->second.end(); index_it++) {
+//                vector<double> &vertex = depth_mesh[*index_it];
+//                vector<double> new_vertex(3);
+//                double distance = vertex[0] * plane[0] + vertex[1] * plane[1] + vertex[2] * plane[2] - plane[3];
+//                for (int c = 0; c < 3; c++)
+//                    new_vertex[c] = vertex[c] - distance * plane[c];
+//                depth_mesh[*index_it] = new_vertex;
+//            }
+//        }
+//        depth_meshes[layer_index] = depth_mesh;
+//    }
+//}
 
 
 void DepthMapRenderer::ReadTriangles(const FileIO &file_io, const int scene_index)
@@ -1137,17 +1215,18 @@ void DepthMapRenderer::ReadTriangles(const FileIO &file_io, const int scene_inde
 //    triangles_ori_in_str.close();
 }
 
-void DepthMapRenderer::ReadCameraParameters(const FileIO &file_io, const int scene_index)
+void DepthMapRenderer::ReadRenderingInfo(const FileIO &file_io, const int scene_index)
 {
-    string camera_parameters_filename = file_io.GetCameraParameters(scene_index);
-    ifstream camera_parameters_in_str(camera_parameters_filename.c_str());
-    camera_parameters_in_str >> focal_length >> image_width >> image_height;
-    camera_parameters_in_str.close();
+    string rendering_info_filename = file_io.GetRenderingInfo(scene_index);
+    ifstream rendering_info_in_str(rendering_info_filename.c_str());
+    rendering_info_in_str >> focal_length >> image_width >> image_height;
+    rendering_info_in_str >> num_layers;
+    rendering_info_in_str.close();
 }
 
 void DepthMapRenderer::InitLayerTriangles(const FileIO &file_io, const int scene_index)
 {
-    layer_triangles.resize(num_layers);
+    layer_triangles.assign(num_layers, vector<double>());
     for (int layer_index = 0; layer_index < num_layers; layer_index++) {
         string depth_values_filename = file_io.GetLayerDepthValues(scene_index, layer_index);
         ifstream depth_values_in_str(depth_values_filename.c_str());
@@ -1199,6 +1278,7 @@ void DepthMapRenderer::InitTrianglesOri(const FileIO &file_io, const int scene_i
         depth_values_ori_in_str >> depth_values_ori[i];
     depth_values_ori_in_str.close();
 
+    triangles_ori.clear();
     for (int x = 0; x < width - 1; x++) {
        for (int y = 0; y < height - 1; y++) {
          vector<int> vertex_indices;
@@ -1221,6 +1301,39 @@ void DepthMapRenderer::InitTrianglesOri(const FileIO &file_io, const int scene_i
          }
        }
    }
+    layer_triangles.push_back(triangles_ori);
+}
+
+void DepthMapRenderer::TurnVBOOnOff()
+{
+    use_VBO = !use_VBO;
+}
+
+void DepthMapRenderer::resetScene(const FileIO file_io, const int scene_index)
+{
+    ReadRenderingInfo(file_io, scene_index);
+
+    rgb_images.assign(num_layers, QImage());
+    for (int layer_index = 0; layer_index < num_layers; layer_index++)
+      rgb_images[layer_index].load(file_io.GetLayerTextureImage(scene_index, layer_index).c_str());
+     QImage ori_image(file_io.GetOriImage(scene_index).c_str());
+     rgb_images.push_back(ori_image);
+
+  //  if (rgb_image.isNull()) {
+  //    cout << file_io.GetPanoramaImage(panorama_id) << endl;
+  //    exit (1);
+  //  }
+
+
+  //   ReadTriangles(file_io, scene_index);
+     InitLayerTriangles(file_io, scene_index);
+     InitTrianglesOri(file_io, scene_index);
+
+     for (int layer_index = 0; layer_index < num_layers + 1; layer_index++)
+         widget->deleteTexture(texture_ids[layer_index]);
+     for (int layer_index = 0; layer_index < num_layers + 1; layer_index++)
+         texture_ids[layer_index] = widget->bindTexture(rgb_images[layer_index]);
+
 }
 
 }  // namespace structured_indoor_modeling

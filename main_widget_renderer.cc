@@ -54,7 +54,7 @@ namespace structured_indoor_modeling {
 
 //    glClearColor(1, 1, 1, 1);
 
-    depth_map_renderer.Render(alpha, &panorama_program);
+    depth_map_renderer.Render(alpha, &depth_map_program);
 
 //    switch (navigation.GetCameraStatus()) {
 //    case kPanorama: {
