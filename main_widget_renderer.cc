@@ -11,7 +11,7 @@
 #include <windows.h>
 #include <GL/glu.h>
 #else
-#include <OpenGL/glu.h>
+#include <GLUT/glut.h>
 #endif
 
 using namespace Eigen;
@@ -20,8 +20,8 @@ using namespace std;
 namespace structured_indoor_modeling {
   
   void MainWidget::RenderFloorplan(const double alpha,
-				   const bool emphasize,
-				   const double height_adjustment) {
+                   const bool emphasize,
+                   const double height_adjustment) {
     glPushAttrib(GL_ALL_ATTRIB_BITS);
 
     glDisable(GL_DEPTH_TEST);
@@ -68,7 +68,7 @@ namespace structured_indoor_modeling {
     
     glDisable(GL_TEXTURE_2D);
     glPopAttrib();
-  }  
+  }
   
   
   // divide_by_alpha_mode
@@ -144,8 +144,8 @@ namespace structured_indoor_modeling {
     glMatrixMode(GL_PROJECTION);
     glPopMatrix();
     
-    glPopAttrib();  
-  } 
+    glPopAttrib();
+  }
   
 
   void MainWidget::ClearDisplay() {
@@ -156,6 +156,7 @@ namespace structured_indoor_modeling {
     glClearColor(1.0, 1.0, 1.0, 0.0);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glClearColor(background[0], background[1], background[2], 0);
-  }    
+    glClearColor(0.0, 0.0, 0.0, 0.0);
+  }
 
 }  // namespace structured_indoor_modeling

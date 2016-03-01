@@ -22,7 +22,8 @@ SOURCES += \
     poly2tri/sweep/advancing_front.cc \
     poly2tri/sweep/cdt.cc \
     poly2tri/sweep/sweep.cc \
-    poly2tri/sweep/sweep_context.cc
+    poly2tri/sweep/sweep_context.cc \
+    main_window.cpp
 
 HEADERS += \
     panorama.h \
@@ -38,7 +39,17 @@ HEADERS += \
     poly2tri/sweep/cdt.h \
     poly2tri/sweep/sweep.h \
     poly2tri/sweep/sweep_context.h \
-    poly2tri/poly2tri.h
+    poly2tri/poly2tri.h \
+    main_window.h
 
 INCLUDEPATH += /usr/local/include/
-LIBS += -lopencv_core -lopencv_highgui -lopencv_imgproc -lopencv_imgcodecs -lglut -lGLU -lGLEW
+
+LIBS += -L/usr/local/lib
+#LIBS += -lglut
+# -lGLU
+# -lGLEW
+LIBS += -lopencv_core -lopencv_highgui -lopencv_imgproc -lopencv_imgcodecs
+
+mac: LIBS += -framework GLUT
+
+CONFIG -= x86_64

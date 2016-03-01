@@ -65,6 +65,12 @@ class FileIO {
      return buffer;
 }
 
+ std::string GetStaticLayerTextureImage(const int scene_index, const int layer_index) const
+{
+     sprintf(buffer, "%s/scene_%d/texture_image_%d.bmp", data_directory.c_str(), scene_index, layer_index);
+     return buffer;
+}
+
  std::string GetOriImage(const int scene_index) const
 {
      sprintf(buffer, "%s/scene_%d/texture_image_ori.bmp", data_directory.c_str(), scene_index);

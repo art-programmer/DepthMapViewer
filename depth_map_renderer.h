@@ -41,8 +41,14 @@ class DepthMapRenderer {
   void rotateByZ(const double delta_angle_z);
   void returnToOriginalViewPoint();
   void TurnVBOOnOff();
+  void setStaticAlpha(const float alpha);
 
   void resetScene(const FileIO file_io, const int scene_index);
+
+  void printPosition();
+
+  int getWidth();
+  int getHeight();
 
 //  DepthMapRenderer& operator = (const DepthMapRenderer &right);
  private:
@@ -108,6 +114,8 @@ class DepthMapRenderer {
 
   std::vector<GLuint> VBO_ids;
   std::vector<GLuint> VAO_ids;
+
+  float static_alpha;
 
 //  std::vector<int> layer_num_triangle_vertices;
 };

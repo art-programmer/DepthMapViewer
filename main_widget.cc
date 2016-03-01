@@ -19,8 +19,10 @@
 #include <GL/glew.h>
 //#include <GL/glext.h>
 //#endif
+
 #else
-#include <OpenGL/glu.h>
+#include <GLUT/glut.h>
+//#include <OpenGL/glu.h>
 #endif
 
 #include <opencv2/opencv.hpp>
@@ -81,9 +83,9 @@ MainWidget::MainWidget(const Configuration& configuration_tmp, const std::string
   fresh_screen_for_air = true;
   fresh_screen_for_floorplan = true;
 
-  simple_click_time.start();
-  double_click_time.start();
-  object_animation_time.start();
+//  simple_click_time.start();
+//  double_click_time.start();
+//  object_animation_time.start();
   simple_click_time_offset_by_move = 0.0;
   mouse_down = false;
 
@@ -98,6 +100,7 @@ MainWidget::MainWidget(const Configuration& configuration_tmp, const std::string
 
   transition_progress = 1.0;
   transition_direction = 'N';
+
 }
 
 MainWidget::~MainWidget() {
@@ -115,7 +118,7 @@ void MainWidget::AllocateResources() {
     
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glBindTexture(GL_TEXTURE_2D, 0);    
+    glBindTexture(GL_TEXTURE_2D, 0);
       
     glBindRenderbuffer(GL_RENDERBUFFER, renderids[i]);
     // glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width(), height());
@@ -129,11 +132,11 @@ void MainWidget::AllocateResources() {
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-    GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER); 
-    if (status != GL_FRAMEBUFFER_COMPLETE) {
-      cerr << "not complete" << endl;
-      exit (1);
-    }
+//    GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+//    if (status != GL_FRAMEBUFFER_COMPLETE) {
+//      cerr << "not complete" << endl;
+//      exit (1);
+//    }
   }
 }
 
@@ -178,25 +181,25 @@ void MainWidget::InitPanoramasPanoramaRenderers() {
     depth_map_renderer = DepthMapRenderer();
 
     depth_map_renderer.Init(file_io, configuration.scene_index, this);
-//    image_width = depth_maps[0].Width();
-//    image_height = depth_maps[0].Height();
+    image_width = depth_map_renderer.getWidth();
+    image_height = depth_map_renderer.getHeight();
 }
   
 void MainWidget::InitializeShaders() {
   // Override system locale until shaders are compiled
   setlocale(LC_NUMERIC, "C");
 
-  // Compile vertex shader
-  if (!blend_program.addShaderFromSourceFile(QOpenGLShader::Vertex, "blend_vshader.glsl"))
-    close();
+//  // Compile vertex shader
+//  if (!blend_program.addShaderFromSourceFile(QOpenGLShader::Vertex, "blend_vshader.glsl"))
+//    close();
   
-  // Compile fragment shader
-  if (!blend_program.addShaderFromSourceFile(QOpenGLShader::Fragment, "blend_fshader.glsl"))
-    close();
+//  // Compile fragment shader
+//  if (!blend_program.addShaderFromSourceFile(QOpenGLShader::Fragment, "blend_fshader.glsl"))
+//    close();
   
-  // Link shader pipeline
-  if (!blend_program.link())
-    close();
+//  // Link shader pipeline
+//  if (!blend_program.link())
+//    close();
 
   // Bind shader pipeline for use
   // if (!blend_program.bind())
@@ -206,8 +209,10 @@ void MainWidget::InitializeShaders() {
   if (!depth_map_program.addShaderFromSourceFile(QOpenGLShader::Vertex, "depth_map_vshader.glsl"))
     close();
   // Compile fragment shader
-  if (!depth_map_program.addShaderFromSourceFile(QOpenGLShader::Fragment, "depth_map_fshader.glsl"))
+  if (!depth_map_program.addShaderFromSourceFile(QOpenGLShader::Fragment, "FXAA_fshader.glsl"))
+//  if (!depth_map_program.addShaderFromSourceFile(QOpenGLShader::Fragment, "depth_map_fshader.glsl"))
     close();
+
   // Link shader pipeline
   if (!depth_map_program.link())
     close();
@@ -225,6 +230,7 @@ void MainWidget::initializeGL() {
   InitializeShaders();
   glClearColor(background[0], background[1], background[2], 0);
   glClearColor(1.0, 1.0, 1.0, 0.0);
+  glClearColor(0.0, 0.0, 0.0, 0.0);
 
   glEnable(GL_DEPTH_TEST);
 //  glEnable(GL_CULL_FACE);
@@ -247,7 +253,7 @@ void MainWidget::resizeGL(int w, int h) {
   if (w != current_width || h != current_height) {
     FreeResources();
     AllocateResources();
-  }  
+  }
 }
 
 void MainWidget::SetMatrices() {
@@ -260,9 +266,10 @@ void MainWidget::SetMatrices() {
 
   const double max_distance = 10;
   const double min_distance = 0.0001;
-  const double x_angle = 120 * M_PI / 180.0;
+  const double x_angle = 150 * M_PI / 180.0;
   const double y_angle = 2.0 * atan(tan(x_angle / 2.0) * height() / width());
 
+//  gluPerspective(viewing_angle_y, 1.5, min_distance, max_distance);
   gluPerspective(viewing_angle_y, width() / static_cast<double>(height()), min_distance, max_distance);
 //  gluPerspective(viewing_angle_y, image_width / static_cast<double>(image_height), min_distance, max_distance);
 
@@ -392,231 +399,222 @@ void MainWidget::mouseDoubleClickEvent(QMouseEvent *e) {
 //  }
 }
 
-void MainWidget::keyPressEvent(QKeyEvent* e) {
-    if (e->key() == Qt::Key_Up) {
-        transition_progress = 0.0;
-        transition_direction = 'U';
-    }
-    if (e->key() == Qt::Key_Down) {
-        transition_progress = 0.0;
-        transition_direction = 'D';
-    }
-    if (e->key() == Qt::Key_Left) {
-        transition_progress = 0.0;
-        transition_direction = 'L';
-    }
-    if (e->key() == Qt::Key_Right) {
-        transition_progress = 0.0;
-        transition_direction = 'R';
-    }
-    if (e->key() == Qt::Key_I) {
-        transition_progress = 0.0;
-        transition_direction = 'F';
-    }
-    if (e->key() == Qt::Key_O) {
-        transition_progress = 0.0;
-        transition_direction = 'B';
-    }
-    if (e->key() == Qt::Key_P) {
-        transition_progress = 0.0;
-        transition_direction = 'P';
-    }
-    if (e->key() == Qt::Key_R) {
-        depth_map_renderer.returnToOriginalViewPoint();
-    }
-    if (e->key() == Qt::Key_S) {
-        bool ok;
-        int scene_index = QInputDialog::getInt(this, "Input scene index.", "scene index: ", 1, 1, 20000, 1, &ok);
-        if (ok == true)
-            depth_map_renderer.resetScene(file_io, scene_index);
-    }
 
-    if (e->key() == Qt::Key_Space) {
-        depth_map_renderer.TurnVBOOnOff();
-    }
-    if (e->key() == Qt::Key_A) {
-        depth_map_renderer.setRenderingMode('A');
-    }
-    if (e->key() == Qt::Key_Q) {
-        depth_map_renderer.setRenderingMode('O');
-    }
-    if (e->key() == Qt::Key_1) {
-        depth_map_renderer.setRenderingMode('0');
-    }
-    if (e->key() == Qt::Key_2) {
-        depth_map_renderer.setRenderingMode('1');
-    }
-    if (e->key() == Qt::Key_3) {
-        depth_map_renderer.setRenderingMode('2');
-    }
-    if (e->key() == Qt::Key_4) {
-        depth_map_renderer.setRenderingMode('3');
-    }
-    if (e->key() == Qt::Key_5) {
-        depth_map_renderer.setRenderingMode('4');
-    }
-    if (e->key() == Qt::Key_6) {
-        depth_map_renderer.setRenderingMode('5');
-    }
-    if (e->key() == Qt::Key_7) {
-        depth_map_renderer.setRenderingMode('6');
-    }
-    if (e->key() == Qt::Key_8) {
-        depth_map_renderer.setRenderingMode('7');
-    }
-    if (e->key() == Qt::Key_9) {
-        depth_map_renderer.setRenderingMode('8');
-    }
-    if (e->key() == Qt::Key_0) {
-        depth_map_renderer.setRenderingMode('9');
-    }
-
-    updateGL();
-
-
-//    if (e->key() == Qt::Key_Up)
-//        depth_map_renderer.moveByZ(0.02);
-//    if (e->key() == Qt::Key_Down)
-//        depth_map_renderer.moveByZ(-0.02);
-//    if (e->key() == Qt::Key_Left)
-//        depth_map_renderer.moveByX(0.02);
-//    if (e->key() == Qt::Key_Right)
-//        depth_map_renderer.moveByX(-0.02);
-
-//  const double kRotationAngle = 45.0 * M_PI / 180.0;
-//  //----------------------------------------------------------------------
-//  // Arrows.
-//  if (e->key() == Qt::Key_H) {
-//    cerr << "There are 4 different viewing modes." << endl
-//         << "  A: Switch to panorama mode." << endl
-//         << "  S: Switch to aerial mode." << endl
-//         << "  D: Switch to floorplan mode." << endl
-//         << "  F: Switch to tree-view mode." << endl
-//         << endl
-//         << "R: Change the rendering style for the back-facing walls." << endl
-//         << "T: Toggle on/off rendering the back side of the wall." << endl
-//         << "U: Change the background color between black and white." << endl
-//         << "I: Save a screenshot." << endl
-//         << "O: Toggle on/off rendering the object points." << endl
-//         << "P: Change the mesh in the aerial mode (floorplan.txt or floorplan_detailed.txt)." << endl;
-//  } else if (e->key() == Qt::Key_Up) {
-//    if (navigation.GetCameraStatus() == kPanorama) {
-//      navigation.MoveForwardPanorama();
+//void MainWidget::keyPressEvent(QKeyEvent* e) {
+//    if (e->key() == Qt::Key_Up) {
+//        transition_progress = 0.0;
+//        transition_direction = 'U';
 //    }
-//  } else if (e->key() == Qt::Key_Down) {
-//    if (navigation.GetCameraStatus() == kPanorama) {
-//      navigation.MoveBackwardPanorama();
+//    if (e->key() == Qt::Key_Down) {
+//        transition_progress = 0.0;
+//        transition_direction = 'D';
 //    }
-//  } else if (e->key() == Qt::Key_Left) {
-//    double rotation_angle = kRotationAngle;
+//    if (e->key() == Qt::Key_Left) {
+//        transition_progress = 0.0;
+//        transition_direction = 'L';
+//    }
+//    if (e->key() == Qt::Key_Right) {
+//        transition_progress = 0.0;
+//        transition_direction = 'R';
+//    }
+//    if (e->key() == Qt::Key_I) {
+//        transition_progress = 0.0;
+//        transition_direction = 'F';
+//    }
+//    if (e->key() == Qt::Key_O) {
+//        transition_progress = 0.0;
+//        transition_direction = 'B';
+//    }
+////    if (e->key() == Qt::Key_P) {
+////        transition_progress = 0.0;
+////        transition_direction = 'P';
+////    }
+//    if (e->key() == Qt::Key_R) {
+//        depth_map_renderer.returnToOriginalViewPoint();
+//    }
+//    if (e->key() == Qt::Key_Space) {
+//        depth_map_renderer.TurnVBOOnOff();
+//    }
+//    if (e->key() == Qt::Key_A) {
+//        depth_map_renderer.setRenderingMode('A');
+//    }
+//    if (e->key() == Qt::Key_Q) {
+//        depth_map_renderer.setRenderingMode('O');
+//    }
+//    if (e->key() == Qt::Key_1) {
+//        depth_map_renderer.setRenderingMode('0');
+//    }
+//    if (e->key() == Qt::Key_2) {
+//        depth_map_renderer.setRenderingMode('1');
+//    }
+//    if (e->key() == Qt::Key_3) {
+//        depth_map_renderer.setRenderingMode('2');
+//    }
+//    if (e->key() == Qt::Key_4) {
+//        depth_map_renderer.setRenderingMode('3');
+//    }
+//    if (e->key() == Qt::Key_5) {
+//        depth_map_renderer.setRenderingMode('4');
+//    }
+//    if (e->key() == Qt::Key_6) {
+//        depth_map_renderer.setRenderingMode('5');
+//    }
+//    if (e->key() == Qt::Key_7) {
+//        depth_map_renderer.setRenderingMode('6');
+//    }
+//    if (e->key() == Qt::Key_8) {
+//        depth_map_renderer.setRenderingMode('7');
+//    }
+//    if (e->key() == Qt::Key_9) {
+//        depth_map_renderer.setRenderingMode('8');
+//    }
+//    if (e->key() == Qt::Key_0) {
+//        depth_map_renderer.setRenderingMode('9');
+//    }
 
-//    bool slow = false;
-//    if(e->modifiers() & Qt::ShiftModifier &&
-//       e->modifiers() & Qt::AltModifier) {
-//      rotation_angle = 90.0 * M_PI / 180.0;
-//      slow = true;
-//    } else if(e->modifiers() & Qt::ShiftModifier) {
-//      rotation_angle = 10.0 * M_PI / 180.0;
-//    } else if(e->modifiers() & Qt::AltModifier) {
-//      rotation_angle = 90.0 * M_PI / 180.0;
-//    }
-//    if (navigation.GetCameraStatus() == kPanorama) {
-//      navigation.RotatePanorama(rotation_angle);
-//    } else if (navigation.GetCameraStatus() == kAir ||
-//               navigation.GetCameraStatus() == kTree) {
-//      navigation.RotateAir(-rotation_angle, slow);
-//    } else if (navigation.GetCameraStatus() == kFloorplan) {
-////      navigation.RotateFloorplan(-rotation_angle);
-//    }
-//  }
-//  else if (e->key() == Qt::Key_Right) {
-//    double rotation_angle = kRotationAngle;
-//    bool slow = false;
-//    if(e->modifiers() & Qt::ShiftModifier &&
-//       e->modifiers() & Qt::AltModifier) {
-//      rotation_angle = 90.0 * M_PI / 180.0;
-//      slow = true;
-//    } else if(e->modifiers() & Qt::ShiftModifier) {
-//      rotation_angle = 10.0 * M_PI / 180.0;
-//    } else if(e->modifiers() & Qt::AltModifier) {
-//      rotation_angle = 90.0 * M_PI / 180.0;
-//    }
+//    updateGL();
+
+
+////    if (e->key() == Qt::Key_Up)
+////        depth_map_renderer.moveByZ(0.02);
+////    if (e->key() == Qt::Key_Down)
+////        depth_map_renderer.moveByZ(-0.02);
+////    if (e->key() == Qt::Key_Left)
+////        depth_map_renderer.moveByX(0.02);
+////    if (e->key() == Qt::Key_Right)
+////        depth_map_renderer.moveByX(-0.02);
+
+////  const double kRotationAngle = 45.0 * M_PI / 180.0;
+////  //----------------------------------------------------------------------
+////  // Arrows.
+////  if (e->key() == Qt::Key_H) {
+////    cerr << "There are 4 different viewing modes." << endl
+////         << "  A: Switch to panorama mode." << endl
+////         << "  S: Switch to aerial mode." << endl
+////         << "  D: Switch to floorplan mode." << endl
+////         << "  F: Switch to tree-view mode." << endl
+////         << endl
+////         << "R: Change the rendering style for the back-facing walls." << endl
+////         << "T: Toggle on/off rendering the back side of the wall." << endl
+////         << "U: Change the background color between black and white." << endl
+////         << "I: Save a screenshot." << endl
+////         << "O: Toggle on/off rendering the object points." << endl
+////         << "P: Change the mesh in the aerial mode (floorplan.txt or floorplan_detailed.txt)." << endl;
+////  } else if (e->key() == Qt::Key_Up) {
+////    if (navigation.GetCameraStatus() == kPanorama) {
+////      navigation.MoveForwardPanorama();
+////    }
+////  } else if (e->key() == Qt::Key_Down) {
+////    if (navigation.GetCameraStatus() == kPanorama) {
+////      navigation.MoveBackwardPanorama();
+////    }
+////  } else if (e->key() == Qt::Key_Left) {
+////    double rotation_angle = kRotationAngle;
+
+////    bool slow = false;
+////    if(e->modifiers() & Qt::ShiftModifier &&
+////       e->modifiers() & Qt::AltModifier) {
+////      rotation_angle = 90.0 * M_PI / 180.0;
+////      slow = true;
+////    } else if(e->modifiers() & Qt::ShiftModifier) {
+////      rotation_angle = 10.0 * M_PI / 180.0;
+////    } else if(e->modifiers() & Qt::AltModifier) {
+////      rotation_angle = 90.0 * M_PI / 180.0;
+////    }
+////    if (navigation.GetCameraStatus() == kPanorama) {
+////      navigation.RotatePanorama(rotation_angle);
+////    } else if (navigation.GetCameraStatus() == kAir ||
+////               navigation.GetCameraStatus() == kTree) {
+////      navigation.RotateAir(-rotation_angle, slow);
+////    } else if (navigation.GetCameraStatus() == kFloorplan) {
+//////      navigation.RotateFloorplan(-rotation_angle);
+////    }
+////  }
+////  else if (e->key() == Qt::Key_Right) {
+////    double rotation_angle = kRotationAngle;
+////    bool slow = false;
+////    if(e->modifiers() & Qt::ShiftModifier &&
+////       e->modifiers() & Qt::AltModifier) {
+////      rotation_angle = 90.0 * M_PI / 180.0;
+////      slow = true;
+////    } else if(e->modifiers() & Qt::ShiftModifier) {
+////      rotation_angle = 10.0 * M_PI / 180.0;
+////    } else if(e->modifiers() & Qt::AltModifier) {
+////      rotation_angle = 90.0 * M_PI / 180.0;
+////    }
     
-//    if (navigation.GetCameraStatus() == kPanorama) {
-//      navigation.RotatePanorama(-rotation_angle);
-//    }
-//  }
-//  //----------------------------------------------------------------------
-//  // 4 modes.
-//  else if (e->key() == Qt::Key_A) {
-//      cerr << "Key press event error." << endl;
-//      exit(1);
-//    if (navigation.GetCameraStatus() == kAir)
-//      navigation.AirToPanorama(navigation.GetCameraPanorama().start_index);
-//    else if (navigation.GetCameraStatus() == kFloorplan)
-//      navigation.FloorplanToPanorama(navigation.GetCameraPanorama().start_index);
-//  } else if (e->key() == Qt::Key_S) {
-//    if (navigation.GetCameraStatus() == kPanorama)
-//      navigation.PanoramaToAir();
-//    else if (navigation.GetCameraStatus() == kFloorplan)
-//      navigation.FloorplanToAir();
-//    else if (navigation.GetCameraStatus() == kTree)
-//      navigation.TreeToAir();
-//  } else if (e->key() == Qt::Key_D) {
-//    if (navigation.GetCameraStatus() == kPanorama)
-//      navigation.PanoramaToFloorplan();
-//    else if (navigation.GetCameraStatus() == kAir)
-//      navigation.AirToFloorplan();
-//  } else if (e->key() == Qt::Key_F) {
-//    if (navigation.GetCameraStatus() == kAir) {
-//      navigation.AirToTree();
-//      tree_entry_time = object_animation_time.elapsed();
-//    }
-//  }
-//  //----------------------------------------------------------------------
-//  // Toggle switch.
-//  else if (e->key() == Qt::Key_R) {
-//    indoor_polygon_renderer.ToggleRenderMode();
-//    updateGL();
-//  } else if (e->key() == Qt::Key_O) {
-//    object_renderer.Toggle();
-//    updateGL();
-//  } else if (e->key() == Qt::Key_P) {
-//    polygon_or_indoor_polygon = !polygon_or_indoor_polygon;
-//    updateGL();
-//  } else if (e->key() == Qt::Key_T) {
-//    render_backface = !render_backface;
-//    updateGL();
-//  } else if (e->key() == Qt::Key_U) {
-//    if (background == kBackgroundBlack)
-//      background = kBackgroundWhite;
-//    else
-//      background = kBackgroundBlack;
+////    if (navigation.GetCameraStatus() == kPanorama) {
+////      navigation.RotatePanorama(-rotation_angle);
+////    }
+////  }
+////  //----------------------------------------------------------------------
+////  // 4 modes.
+////  else if (e->key() == Qt::Key_A) {
+////      cerr << "Key press event error." << endl;
+////      exit(1);
+////    if (navigation.GetCameraStatus() == kAir)
+////      navigation.AirToPanorama(navigation.GetCameraPanorama().start_index);
+////    else if (navigation.GetCameraStatus() == kFloorplan)
+////      navigation.FloorplanToPanorama(navigation.GetCameraPanorama().start_index);
+////  } else if (e->key() == Qt::Key_S) {
+////    if (navigation.GetCameraStatus() == kPanorama)
+////      navigation.PanoramaToAir();
+////    else if (navigation.GetCameraStatus() == kFloorplan)
+////      navigation.FloorplanToAir();
+////    else if (navigation.GetCameraStatus() == kTree)
+////      navigation.TreeToAir();
+////  } else if (e->key() == Qt::Key_D) {
+////    if (navigation.GetCameraStatus() == kPanorama)
+////      navigation.PanoramaToFloorplan();
+////    else if (navigation.GetCameraStatus() == kAir)
+////      navigation.AirToFloorplan();
+////  } else if (e->key() == Qt::Key_F) {
+////    if (navigation.GetCameraStatus() == kAir) {
+////      navigation.AirToTree();
+////      tree_entry_time = object_animation_time.elapsed();
+////    }
+////  }
+////  //----------------------------------------------------------------------
+////  // Toggle switch.
+////  else if (e->key() == Qt::Key_R) {
+////    indoor_polygon_renderer.ToggleRenderMode();
+////    updateGL();
+////  } else if (e->key() == Qt::Key_O) {
+////    object_renderer.Toggle();
+////    updateGL();
+////  } else if (e->key() == Qt::Key_P) {
+////    polygon_or_indoor_polygon = !polygon_or_indoor_polygon;
+////    updateGL();
+////  } else if (e->key() == Qt::Key_T) {
+////    render_backface = !render_backface;
+////    updateGL();
+////  } else if (e->key() == Qt::Key_U) {
+////    if (background == kBackgroundBlack)
+////      background = kBackgroundWhite;
+////    else
+////      background = kBackgroundBlack;
 
-//    glClearColor(background[0], background[1], background[2], 0);
-//    updateGL();
-//  } else if (e->key() == Qt::Key_I) {
-//    cerr << "filename > " << flush;
-//    string filename;
-//    cin >> filename;
+////    glClearColor(background[0], background[1], background[2], 0);
+////    updateGL();
+////  } else if (e->key() == Qt::Key_I) {
+////    cerr << "filename > " << flush;
+////    string filename;
+////    cin >> filename;
     
-//    glReadBuffer(GL_BACK);
-//    vector<unsigned char> buffer(width() * height() * 4);
-//    glReadPixels(0, 0, width(), height(), GL_RGBA, GL_UNSIGNED_BYTE, &buffer[0]);
-//    cv::Mat image(height(), width(), CV_8UC3);
-//    for (int y = 0; y < height(); ++y) {
-//      for (int x = 0; x < width(); ++x) {
-//        image.at<cv::Vec3b>(height() - 1 - y, x) = cv::Vec3b(buffer[4 * (y * width() + x) + 2],
-//                                                             buffer[4 * (y * width() + x) + 1],
-//                                                             buffer[4 * (y * width() + x) + 0]);
-//      }
-//    }
-//    cv::imwrite(filename, image);
-//  }
-}
-
-void MainWidget::keyReleaseEvent(QKeyEvent *) {  
-}
+////    glReadBuffer(GL_BACK);
+////    vector<unsigned char> buffer(width() * height() * 4);
+////    glReadPixels(0, 0, width(), height(), GL_RGBA, GL_UNSIGNED_BYTE, &buffer[0]);
+////    cv::Mat image(height(), width(), CV_8UC3);
+////    for (int y = 0; y < height(); ++y) {
+////      for (int x = 0; x < width(); ++x) {
+////        image.at<cv::Vec3b>(height() - 1 - y, x) = cv::Vec3b(buffer[4 * (y * width() + x) + 2],
+////                                                             buffer[4 * (y * width() + x) + 1],
+////                                                             buffer[4 * (y * width() + x) + 0]);
+////      }
+////    }
+////    cv::imwrite(filename, image);
+////  }
+//}
 
 void MainWidget::wheelEvent(QWheelEvent* e) {
     if (e->delta() > 0)
@@ -643,9 +641,10 @@ void MainWidget::mouseMoveEvent(QMouseEvent *e) {
 void MainWidget::timerEvent(QTimerEvent *) {
 
     const double TIME_FOR_EACH_DIRECTION = 3;
-    const double MOVEMENT_FOR_EACH_DIRECTION = 0.002;
+    const double MOVEMENT_FOR_EACH_DIRECTION = 0.0013;
 
     const double TIME_FOR_SINGLE_MOVEMENT = 1;
+
 //    cout << "timer event" << endl;
     if (transition_progress < 1.0) {
         switch (transition_direction) {
@@ -673,34 +672,47 @@ void MainWidget::timerEvent(QTimerEvent *) {
             transition_progress += TIME_FOR_SINGLE_MOVEMENT / 60;
             depth_map_renderer.moveByZ(-MOVEMENT_FOR_EACH_DIRECTION / 2 / (TIME_FOR_SINGLE_MOVEMENT * 60));
             break;
-        case 'P':
+        case 'P': {
 //            cout << "yes" << endl;
-            if (transition_progress < 1.0 / 12)
-                depth_map_renderer.moveByX(MOVEMENT_FOR_EACH_DIRECTION / (TIME_FOR_EACH_DIRECTION / 2 * 60));
-            else if (transition_progress < 1.0 / 12 * 3)
-                depth_map_renderer.moveByX(-MOVEMENT_FOR_EACH_DIRECTION / (TIME_FOR_EACH_DIRECTION / 2 * 60));
-            else if (transition_progress < 1.0 / 12 * 4)
-                depth_map_renderer.moveByX(MOVEMENT_FOR_EACH_DIRECTION / (TIME_FOR_EACH_DIRECTION / 2 * 60));
-            else if (transition_progress < 1.0 / 12 * 5)
-                depth_map_renderer.moveByY(MOVEMENT_FOR_EACH_DIRECTION / (TIME_FOR_EACH_DIRECTION / 2 * 60));
-            else if (transition_progress < 1.0 / 12 * 7)
-                depth_map_renderer.moveByY(-MOVEMENT_FOR_EACH_DIRECTION / (TIME_FOR_EACH_DIRECTION / 2 * 60));
-            else if (transition_progress < 1.0 / 12 * 8)
-                depth_map_renderer.moveByY(MOVEMENT_FOR_EACH_DIRECTION / (TIME_FOR_EACH_DIRECTION / 2 * 60));
-            else if (transition_progress < 1.0 / 12 * 9)
-                depth_map_renderer.moveByZ(MOVEMENT_FOR_EACH_DIRECTION / (TIME_FOR_EACH_DIRECTION / 2 * 60));
-            else if (transition_progress < 1.0 / 12 * 11)
-                depth_map_renderer.moveByZ(-MOVEMENT_FOR_EACH_DIRECTION / (TIME_FOR_EACH_DIRECTION / 2 * 60));
-            else if (transition_progress < 1.0 / 12 * 12)
-                depth_map_renderer.moveByZ(MOVEMENT_FOR_EACH_DIRECTION / (TIME_FOR_EACH_DIRECTION / 2 * 60));
-            transition_progress += 1.0 / (TIME_FOR_EACH_DIRECTION * 6 * 60);
+            const double progress_ratio = abs(transition_progress - round(transition_progress / (1.0 / 6)) * 1.0 / 6) / (1.0 / 12);
+            const double transition = MOVEMENT_FOR_EACH_DIRECTION / (TIME_FOR_EACH_DIRECTION / 2 * 60) * (1 - progress_ratio);
+//            if (transition_progress <= 1.0 / 12 * 4)
+//                cout << transition << '\t' << progress_ratio << '\t' << transition_progress << endl;
+//            else
+//                exit(1);
+
+            int rounded_transition_progress = round(transition_progress * (TIME_FOR_EACH_DIRECTION * 4 * 60));
+            int rounded_threshold = round(1.0 / 12 * (TIME_FOR_EACH_DIRECTION * 4 * 60));
+            if (rounded_transition_progress < rounded_threshold * 1)
+                depth_map_renderer.moveByX(transition);
+            else if (rounded_transition_progress < rounded_threshold * 3)
+                depth_map_renderer.moveByX(-transition);
+            else if (rounded_transition_progress < rounded_threshold * 4)
+                depth_map_renderer.moveByX(transition);
+            else if (rounded_transition_progress < rounded_threshold * 5)
+                depth_map_renderer.moveByY(transition);
+            else if (rounded_transition_progress < rounded_threshold * 7)
+                depth_map_renderer.moveByY(-transition);
+            else if (rounded_transition_progress < rounded_threshold * 8)
+                depth_map_renderer.moveByY(transition);
+//            else if (rounded_transition_progress < rounded_threshold * 9)
+//                depth_map_renderer.moveByZ(transition);
+//            else if (rounded_transition_progress < rounded_threshold * 11)
+//                depth_map_renderer.moveByZ(-transition);
+//            else if (rounded_transition_progress < rounded_threshold * 12)
+//                depth_map_renderer.moveByZ(transition);
+            transition_progress += 1.0 / (TIME_FOR_EACH_DIRECTION * 4 * 60);
+            depth_map_renderer.setStaticAlpha(max(1 - 10 * progress_ratio, 0.0));
             break;
+        }
         default:
             break;
         }
+    } else {
+        depth_map_renderer.setStaticAlpha(1);
     }
     updateGL();
-}  
+}
 
 bool MainWidget::RightAfterSimpleClick(const double margin) const {
   const double kDoubleClickMargin = 0.5;
@@ -716,6 +728,26 @@ bool MainWidget::RightAfterSimpleClick(const double margin) const {
   else {
     return false;
   }
+}
+
+void MainWidget::startMovement()
+{
+    depth_map_renderer.returnToOriginalViewPoint();
+    transition_direction = 'P';
+    transition_progress = 0.0;
+
+    updateGL();
+}
+
+void MainWidget::resetScene(const int scene_index)
+{
+    depth_map_renderer.resetScene(file_io, scene_index);
+    updateGL();
+}
+
+void MainWidget::setRenderingMode(const char mode)
+{
+    depth_map_renderer.setRenderingMode(mode);
 }
 
   /*

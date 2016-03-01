@@ -31,13 +31,16 @@ public:
                         QWidget *parent = 0);
     ~MainWidget();
 
+    void setRenderingMode(const char mode);
+
+
 protected:
     void mousePressEvent(QMouseEvent *e);
     void mouseReleaseEvent(QMouseEvent *e);
     void mouseMoveEvent(QMouseEvent *e);
     void mouseDoubleClickEvent(QMouseEvent *e);
-    void keyPressEvent(QKeyEvent *e);
-    void keyReleaseEvent(QKeyEvent *e);
+//    void keyPressEvent(QKeyEvent *e);
+//    void keyReleaseEvent(QKeyEvent *e);
     void wheelEvent(QWheelEvent* e);
     
     void timerEvent(QTimerEvent *e);
@@ -199,6 +202,10 @@ private:
     
     void ClearDisplay();
     void ClearDisplayWithWhite();
+
+public slots:
+    void startMovement();
+    void resetScene(const int scene_index);
 };
 
 }  // namespace structured_indoor_modeling

@@ -1,5 +1,5 @@
 #include <fstream>
-#include <opencv2/imgproc/imgproc.hpp>
+//#include <opencv2/imgproc/imgproc.hpp>
 
 #include "panorama.h"
 
@@ -127,13 +127,13 @@ Eigen::Vector2d Panorama::ProjectToDepth(const Eigen::Vector3d& global) const {
 Eigen::Vector3d Panorama::GlobalToLocal(const Eigen::Vector3d& global) const {
   const Vector4d global4(global[0], global[1], global[2], 1.0);
   const Vector4d local4 = global_to_local * global4;
-  return Vector3d(local4[0], local4[1], local4[2]); 
+  return Vector3d(local4[0], local4[1], local4[2]);
 }
 
 Eigen::Vector3d Panorama::LocalToGlobal(const Eigen::Vector3d& local) const {
   const Vector4d local4(local[0], local[1], local[2], 1.0);
   const Vector4d global4 = local_to_global * local4;
-  return Vector3d(global4[0], global4[1], global4[2]); 
+  return Vector3d(global4[0], global4[1], global4[2]);
 }
 
 Eigen::Vector2d Panorama::RGBToDepth(const Eigen::Vector2d& pixel) const {
@@ -256,7 +256,7 @@ double Panorama::GetPhiRange() const {
 
 double Panorama::GetPhiPerPixel() const {
   return phi_per_pixel;
-}  
+}
 
 Eigen::Matrix4d Panorama::GetGlobalToLocal() const {
   return global_to_local;
@@ -474,7 +474,7 @@ void Panorama::SetGlobalToLocalFromLocalToGlobal() {
   global_to_local(3, 1) = 0.0;
   global_to_local(3, 2) = 0.0;
   global_to_local(3, 3) = 1.0;
-}  
+}
 
 void Panorama::MakeOnlyBackgroundBlack() {
   // Background must be in [0, kTopRato] or [kBottomRatio, 1].
@@ -502,7 +502,7 @@ void Panorama::MakeOnlyBackgroundBlack() {
     }
 
     for(; bottom_index > bottom_height - bottom_margin; --bottom_index){
-	 rgb_image.at<cv::Vec3b>(bottom_index, x) = cv::Vec3b(0,0,0);
+     rgb_image.at<cv::Vec3b>(bottom_index, x) = cv::Vec3b(0,0,0);
     }
     
     // Make black pixels between top_index and bottom_index to (1, 1, 1).

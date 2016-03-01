@@ -1,13 +1,13 @@
-#include <GL/glew.h>
+//#include <GL/glew.h>
 #include <fstream>
 #include <iostream>
 #include "depth_map_renderer.h"
 #include "panorama.h"
 #include "utils.h"
 
-//#ifdef __linux__
-#include <GL/glu.h>
-
+#ifdef __linux__
+//#include <GL/glu.h>
+#endif
 
 #include <set>
 
@@ -19,7 +19,7 @@ namespace structured_indoor_modeling {
 DepthMapRenderer::DepthMapRenderer() {
 //    texture_id = -1;
 
-    view_scale = 0.01;
+    view_scale = 0.005;
     translate_x = 0;
     translate_y = 0;
     translate_z = 0;
@@ -30,6 +30,8 @@ DepthMapRenderer::DepthMapRenderer() {
     rendering_mode = 'A';
 
     use_VBO = true;
+
+    static_alpha = 1;
 }
 
 DepthMapRenderer::~DepthMapRenderer() {
@@ -66,34 +68,34 @@ DepthMapRenderer::~DepthMapRenderer() {
 //}
 
 
-void vertexCallback(GLvoid *vertex)
-{
-    const GLdouble *pointer = (GLdouble *) vertex;
- //   glColor3dv(pointer + 3);//在此设置颜色
-    double *color = new double[3];
-    color[0] = color[1] = 0;
-    color[2] = 1;
-    glColor3dv(color);
-    glVertex3dv(pointer);
-}
+//void vertexCallback(GLvoid *vertex)
+//{
+//    const GLdouble *pointer = (GLdouble *) vertex;
+// //   glColor3dv(pointer + 3);//在此设置颜色
+//    double *color = new double[3];
+//    color[0] = color[1] = 0;
+//    color[2] = 1;
+//    glColor3dv(color);
+//    glVertex3dv(pointer);
+//}
 
-void beginCallback(GLenum which)
-{
-    glBegin(which);
-}
+//void beginCallback(GLenum which)
+//{
+//    glBegin(which);
+//}
 
-void endCallback  ()
-{
-    glEnd();
-}
+//void endCallback  ()
+//{
+//    glEnd();
+//}
 
-void errorCallback(GLenum errorCode)
-{
-    const GLubyte *estring;
-    estring = gluErrorString(errorCode);
-    cerr << "Tessellation Error: " << estring << endl;
-    exit(1);
-}
+//void errorCallback(GLenum errorCode)
+//{
+//    const GLubyte *estring;
+//    estring = gluErrorString(errorCode);
+//    cerr << "Tessellation Error: " << estring << endl;
+//    exit(1);
+//}
 
 void combineCallback(GLdouble coords[3],
                               GLdouble *vertex_data[4],
@@ -206,11 +208,15 @@ void DepthMapRenderer::Render(const double alpha, QOpenGLShaderProgram* program)
         cerr << "Cannot bind." << endl;
         exit (1);
       }
+
 //      program->setUniformValue("phi_range", static_cast<float>(depth_maps[0].GetPhiRange()));
       program->setUniformValue("image_width", static_cast<float>(image_width));
       program->setUniformValue("image_height", static_cast<float>(image_height));
 
       program->setUniformValue("focal_length", static_cast<float>(focal_length));
+
+      program->setUniformValue("window_width", static_cast<float>(this->widget->width()));
+      program->setUniformValue("window_height", static_cast<float>(this->widget->height()));
 
 
       GLfloat global_to_local[4][4];
@@ -224,8 +230,12 @@ void DepthMapRenderer::Render(const double alpha, QOpenGLShaderProgram* program)
         }
       }
       program->setUniformValue("global_to_local", global_to_local);
-      program->setUniformValue("alpha", static_cast<float>(alpha));
+      program->setUniformValue("alpha", static_cast<float>(1.0));
+//      alpha_location = glGetUniformLocation(program->programId(), "alpha");
+//      glUniform1f(alpha_location, 1);
+      //program->setUniformValue("alpha", static_cast<float>(alpha));
       program->setUniformValue("tex0", 0);
+//      program->setUniformValue("tex1", 1);
     }
 
 
@@ -311,7 +321,11 @@ void DepthMapRenderer::Render(const double alpha, QOpenGLShaderProgram* program)
 
           glActiveTexture(GL_TEXTURE0);
 
+//          glBindTexture(GL_TEXTURE_2D, texture_ids[layer_index]); // + num_layers + 1]);
           glBindTexture(GL_TEXTURE_2D, texture_ids[layer_index]);
+//          glActiveTexture(GL_TEXTURE1);
+//          glBindTexture(GL_TEXTURE_2D, texture_ids[layer_index + (layer_index < num_layers ? num_layers + 1 : 0)]);
+
           glEnable(GL_TEXTURE_2D);
 
           glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
@@ -352,76 +366,76 @@ void DepthMapRenderer::Render(const double alpha, QOpenGLShaderProgram* program)
   }
   else if (use_tesselator == true) {
 
-      double vertices[5][3] = {
-          {0, 0, -2}, {2, 0, -2}, {1, 1, -2}, {2, 2, -2}, {0, 2, -2}
-      };
-      GLUtesselator *tobj = gluNewTess();
-      if (!tobj) {
-          cerr << "Cannot create tesselator." << endl;
-          exit(1);
-      }
+//      double vertices[5][3] = {
+//          {0, 0, -2}, {2, 0, -2}, {1, 1, -2}, {2, 2, -2}, {0, 2, -2}
+//      };
+//      GLUtesselator *tobj = gluNewTess();
+//      if (!tobj) {
+//          cerr << "Cannot create tesselator." << endl;
+//          exit(1);
+//      }
 
-      gluTessCallback(tobj, GLU_TESS_VERTEX, (void(*)())vertexCallback);
-      gluTessCallback(tobj, GLU_TESS_BEGIN, (void(*)())beginCallback);
-      gluTessCallback(tobj, GLU_TESS_END, (void(*)())endCallback);
-      gluTessCallback(tobj, GLU_TESS_ERROR, (void(*)())errorCallback);
-      gluTessCallback(tobj, GLU_TESS_COMBINE, (void(*)())combineCallback);
+//      gluTessCallback(tobj, GLU_TESS_VERTEX, (void(*)())vertexCallback);
+//      gluTessCallback(tobj, GLU_TESS_BEGIN, (void(*)())beginCallback);
+//      gluTessCallback(tobj, GLU_TESS_END, (void(*)())endCallback);
+//      gluTessCallback(tobj, GLU_TESS_ERROR, (void(*)())errorCallback);
+//      gluTessCallback(tobj, GLU_TESS_COMBINE, (void(*)())combineCallback);
 
-        // glShadeModel(GL_FLAT);
+//        // glShadeModel(GL_FLAT);
 
-        // gluTessProperty(tobj,GLU_TESS_WINDING_RULE,GLU_TESS_WINDING_POSITIVE); //GLU_TESS_WINDING_ODD
+//        // gluTessProperty(tobj,GLU_TESS_WINDING_RULE,GLU_TESS_WINDING_POSITIVE); //GLU_TESS_WINDING_ODD
 
-      for (int layer_index = 0; layer_index < num_layers; layer_index++) {
-          if (rendering_layers.count(layer_index) == 0)
-              continue;
-          vector<vector<double> > &depth_mesh = depth_meshes[layer_index];
-          map<int, vector<int> > surface_boundary_indices = layer_surface_boundary_indices[layer_index];
+//      for (int layer_index = 0; layer_index < num_layers; layer_index++) {
+//          if (rendering_layers.count(layer_index) == 0)
+//              continue;
+//          vector<vector<double> > &depth_mesh = depth_meshes[layer_index];
+//          map<int, vector<int> > surface_boundary_indices = layer_surface_boundary_indices[layer_index];
 
-          glActiveTexture(GL_TEXTURE0);
+//          glActiveTexture(GL_TEXTURE0);
 
-          glBindTexture(GL_TEXTURE_2D, texture_ids[layer_index]);
-          glEnable(GL_TEXTURE_2D);
+//          glBindTexture(GL_TEXTURE_2D, texture_ids[layer_index]);
+//          glEnable(GL_TEXTURE_2D);
 
-          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+//          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+//          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+//          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+//          glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
 
-//          gluTessBeginPolygon(tobj, NULL);
-//          gluTessBeginContour(tobj);
-//          gluTessVertex(tobj, vertices[0], vertices[0]);
-//          gluTessVertex(tobj, vertices[1], vertices[1]);
-//          gluTessVertex(tobj, vertices[2], vertices[2]);
-//          gluTessVertex(tobj, vertices[3], vertices[3]);
-//          gluTessVertex(tobj, vertices[4], vertices[4]);
-//          gluTessEndContour(tobj);
-//          gluTessEndPolygon(tobj);
+////          gluTessBeginPolygon(tobj, NULL);
+////          gluTessBeginContour(tobj);
+////          gluTessVertex(tobj, vertices[0], vertices[0]);
+////          gluTessVertex(tobj, vertices[1], vertices[1]);
+////          gluTessVertex(tobj, vertices[2], vertices[2]);
+////          gluTessVertex(tobj, vertices[3], vertices[3]);
+////          gluTessVertex(tobj, vertices[4], vertices[4]);
+////          gluTessEndContour(tobj);
+////          gluTessEndPolygon(tobj);
 
-          for (map<int, vector<int> >::const_iterator surface_it = surface_boundary_indices.begin(); surface_it != surface_boundary_indices.end(); surface_it++) {
+//          for (map<int, vector<int> >::const_iterator surface_it = surface_boundary_indices.begin(); surface_it != surface_boundary_indices.end(); surface_it++) {
+////              break;
+////              cout << surface_it->second.size() << endl;
+//              if (surface_it->second.size() <= 8)
+//                  continue;
+
+//              gluTessBeginPolygon(tobj, NULL);
+//              gluTessBeginContour(tobj);
+//              for (vector<int>::const_iterator index_it = surface_it->second.begin(); index_it != surface_it->second.end(); index_it++) {
+//                  vector<double> &vertex = depth_mesh[*index_it];
+////                  if (!use_shaders)
+////                      glTexCoord2d((vertex[0] / vertex[2] * max(image_width - 1, image_height - 1)) / static_cast<double>(image_width - 1), 1.0 - (vertex[1] * vertex[2] * max(image_width - 1, image_height - 1)) / static_cast<double>(image_height - 1));
+//                  gluTessVertex(tobj, depth_meshes_data[layer_index * image_width * image_height + *index_it], depth_meshes_data[layer_index * image_width * image_height + *index_it]);
+////                  cout << vertex[0] << '\t' << vertex[1] << '\t' << vertex[2] << endl;
+//              }
+////              cout << "done" << endl;
+//              gluTessEndContour(tobj);
+//              gluTessEndPolygon(tobj);
+////              cout << "done" << endl;
 //              break;
-//              cout << surface_it->second.size() << endl;
-              if (surface_it->second.size() <= 8)
-                  continue;
-
-              gluTessBeginPolygon(tobj, NULL);
-              gluTessBeginContour(tobj);
-              for (vector<int>::const_iterator index_it = surface_it->second.begin(); index_it != surface_it->second.end(); index_it++) {
-                  vector<double> &vertex = depth_mesh[*index_it];
-//                  if (!use_shaders)
-//                      glTexCoord2d((vertex[0] / vertex[2] * max(image_width - 1, image_height - 1)) / static_cast<double>(image_width - 1), 1.0 - (vertex[1] * vertex[2] * max(image_width - 1, image_height - 1)) / static_cast<double>(image_height - 1));
-                  gluTessVertex(tobj, depth_meshes_data[layer_index * image_width * image_height + *index_it], depth_meshes_data[layer_index * image_width * image_height + *index_it]);
-//                  cout << vertex[0] << '\t' << vertex[1] << '\t' << vertex[2] << endl;
-              }
-//              cout << "done" << endl;
-              gluTessEndContour(tobj);
-              gluTessEndPolygon(tobj);
-//              cout << "done" << endl;
-              break;
-          }
-          break;
-      }
-      gluDeleteTess(tobj);
+//          }
+//          break;
+//      }
+//      gluDeleteTess(tobj);
   } else {
       for (int layer_index = num_layers - 1; layer_index >= 0; layer_index--) {
           if (rendering_layers.count(layer_index) == 0)
@@ -694,13 +708,30 @@ void DepthMapRenderer::Init(const FileIO& file_io,
                             const int scene_index,
                             QGLWidget* widget_tmp) {
 
-    ReadRenderingInfo(file_io, scene_index);
+  ReadRenderingInfo(file_io, scene_index);
+
   widget = widget_tmp;
-  rgb_images.resize(num_layers);
+
+
+//  glEnable(GL_TEXTURE_2D);
+//  texture_ids.assign(num_layers * 2 + 1, -1);
+//  resetScene(file_io, scene_index);
+
+
+  rgb_images.resize(num_layers * 2 + 1);
   for (int layer_index = 0; layer_index < num_layers; layer_index++)
     rgb_images[layer_index].load(file_io.GetLayerTextureImage(scene_index, layer_index).c_str());
-   QImage ori_image(file_io.GetOriImage(scene_index).c_str());
-   rgb_images.push_back(ori_image);
+  rgb_images[num_layers].load(file_io.GetOriImage(scene_index).c_str());
+  for (int layer_index = 0; layer_index < num_layers; layer_index++)
+    rgb_images[layer_index + num_layers + 1].load(file_io.GetStaticLayerTextureImage(scene_index, layer_index).c_str());
+
+  image_width = rgb_images[0].width();
+  image_height = rgb_images[0].height();
+
+  InitLayerTriangles(file_io, scene_index);
+  InitTrianglesOri(file_io, scene_index);
+
+
 
 //  if (rgb_image.isNull()) {
 //    cout << file_io.GetPanoramaImage(panorama_id) << endl;
@@ -709,8 +740,6 @@ void DepthMapRenderer::Init(const FileIO& file_io,
 
 
 //   ReadTriangles(file_io, scene_index);
-   InitLayerTriangles(file_io, scene_index);
-   InitTrianglesOri(file_io, scene_index);
 
 
 //  InitDepthMeshes(file_io, scene_index);
@@ -724,9 +753,9 @@ void DepthMapRenderer::Init(const FileIO& file_io,
 
 void DepthMapRenderer::InitGL(QOpenGLShaderProgram* program) {
 //  initializeGLFunctions();
-    glewInit();
+//    glewInit();
   
-  glEnable(GL_TEXTURE_2D);
+    glEnable(GL_TEXTURE_2D);
 
 //  int test_image_size = 3;
 //  QImage test_image(test_image_size, test_image_size, QImage::Format_RGB888);
@@ -740,10 +769,11 @@ void DepthMapRenderer::InitGL(QOpenGLShaderProgram* program) {
 //  }
 //  test_texture_id = widget->bindTexture(test_image);
 
-  texture_ids.resize(num_layers + 1);
-  for (int layer_index = 0; layer_index < num_layers + 1; layer_index++)
+
+  texture_ids.assign(num_layers * 2 + 1, -1);
+  for (int layer_index = 0; layer_index < num_layers * 2 + 1; layer_index++)
       texture_ids[layer_index] = widget->bindTexture(rgb_images[layer_index]);
-//  texture_ids[num_layers] = widget->bindTexture(ori_image);
+
 
   // Set nearest filtering mode for texture minification
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -845,6 +875,7 @@ void DepthMapRenderer::decreaseViewScale()
 void DepthMapRenderer::moveByX(const double delta_x)
 {
     translate_x += delta_x;
+//    cout << translate_x << endl;
 }
 
 void DepthMapRenderer::moveByY(const double delta_y)
@@ -1227,6 +1258,7 @@ void DepthMapRenderer::ReadRenderingInfo(const FileIO &file_io, const int scene_
 void DepthMapRenderer::InitLayerTriangles(const FileIO &file_io, const int scene_index)
 {
     layer_triangles.assign(num_layers, vector<double>());
+    vector<bool> visible_mask(image_width * image_height * 2, true);
     for (int layer_index = 0; layer_index < num_layers; layer_index++) {
         string depth_values_filename = file_io.GetLayerDepthValues(scene_index, layer_index);
         ifstream depth_values_in_str(depth_values_filename.c_str());
@@ -1240,15 +1272,18 @@ void DepthMapRenderer::InitLayerTriangles(const FileIO &file_io, const int scene
         for (int x = 0; x < width - 1; x++) {
            for (int y = 0; y < height - 1; y++) {
              vector<int> vertex_indices;
-             if (depth_values[y * width + x] > 0 && depth_values[y * width + (x + 1)] > 0 && depth_values[(y + 1) * width + (x + 1)] > 0) {
+
+             if (visible_mask[y * image_width + x] && depth_values[y * width + x] > 0 && depth_values[y * width + (x + 1)] > 0 && depth_values[(y + 1) * width + (x + 1)] > 0) {
                  vertex_indices.push_back(y * width + x);
                  vertex_indices.push_back(y * width + (x + 1));
                  vertex_indices.push_back((y + 1) * width + (x + 1));
+                 visible_mask[y * image_width + x] = false;
              }
-             if (depth_values[y * width + x] > 0 && depth_values[(y + 1) * width + (x + 1)] > 0 && depth_values[(y + 1) * width + x] > 0) {
+             if (visible_mask[y * image_width + x + image_width * image_height] && depth_values[y * width + x] > 0 && depth_values[(y + 1) * width + (x + 1)] > 0 && depth_values[(y + 1) * width + x] > 0) {
                  vertex_indices.push_back(y * width + x);
                  vertex_indices.push_back((y + 1) * width + (x + 1));
                  vertex_indices.push_back((y + 1) * width + x);
+                 visible_mask[y * image_width + x + image_width * image_height] = false;
              }
              for (vector<int>::const_iterator index_it = vertex_indices.begin(); index_it != vertex_indices.end(); index_it++) {
                int vertex_x = *index_it % width;
@@ -1313,11 +1348,12 @@ void DepthMapRenderer::resetScene(const FileIO file_io, const int scene_index)
 {
     ReadRenderingInfo(file_io, scene_index);
 
-    rgb_images.assign(num_layers, QImage());
+    rgb_images.assign(num_layers * 2 + 1, QImage());
     for (int layer_index = 0; layer_index < num_layers; layer_index++)
       rgb_images[layer_index].load(file_io.GetLayerTextureImage(scene_index, layer_index).c_str());
-     QImage ori_image(file_io.GetOriImage(scene_index).c_str());
-     rgb_images.push_back(ori_image);
+    rgb_images[num_layers].load(file_io.GetOriImage(scene_index).c_str());
+    for (int layer_index = 0; layer_index < num_layers; layer_index++)
+     rgb_images[layer_index + num_layers + 1].load(file_io.GetStaticLayerTextureImage(scene_index, layer_index).c_str());
 
   //  if (rgb_image.isNull()) {
   //    cout << file_io.GetPanoramaImage(panorama_id) << endl;
@@ -1329,11 +1365,31 @@ void DepthMapRenderer::resetScene(const FileIO file_io, const int scene_index)
      InitLayerTriangles(file_io, scene_index);
      InitTrianglesOri(file_io, scene_index);
 
-     for (int layer_index = 0; layer_index < num_layers + 1; layer_index++)
-         widget->deleteTexture(texture_ids[layer_index]);
-     for (int layer_index = 0; layer_index < num_layers + 1; layer_index++)
-         texture_ids[layer_index] = widget->bindTexture(rgb_images[layer_index]);
+     for (int layer_index = 0; layer_index < num_layers * 2 + 1; layer_index++)
+         if (texture_ids[layer_index] >= 0)
+             widget->deleteTexture(texture_ids[layer_index]);
 
+     for (int layer_index = 0; layer_index < num_layers * 2 + 1; layer_index++)
+         texture_ids[layer_index] = widget->bindTexture(rgb_images[layer_index]);
 }
 
+void DepthMapRenderer::setStaticAlpha(const float alpha)
+{
+    static_alpha = alpha;
+}
+
+void DepthMapRenderer::printPosition()
+{
+    cout << translate_x << '\t' << translate_y << '\t' << translate_z << endl;
+}
+
+int DepthMapRenderer::getWidth()
+{
+    return image_width;
+}
+
+int DepthMapRenderer::getHeight()
+{
+    return image_height;
+}
 }  // namespace structured_indoor_modeling
